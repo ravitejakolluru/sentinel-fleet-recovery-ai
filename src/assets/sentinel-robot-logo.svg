@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" role="img" aria-labelledby="title desc">
+  <title id="title">Sentinel Robotics</title>
+  <desc id="desc">Minimal angular robot head with antenna, side modules, visor and eyes</desc>
+  <rect x="1" y="1" width="38" height="38" fill="none" stroke="#e56d3e" stroke-width="2"/>
+  <path d="M20 7v4M17.5 7h5M13 14h14l3 4v11H10V18l3-4Z" fill="none" stroke="#e56d3e" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M10 19H6v7h4M30 19h4v7h-4" fill="none" stroke="#e56d3e" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M14 19h12v6H14z" fill="#17201f" stroke="#e56d3e" stroke-width="1.5"/>
+  <circle cx="17.5" cy="22" r="1.2" fill="#e56d3e"/><circle cx="22.5" cy="22" r="1.2" fill="#e56d3e"/>
+  <path d="M15 29h10" stroke="#e56d3e" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

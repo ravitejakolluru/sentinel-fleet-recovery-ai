@@ -3,6 +3,7 @@ import { buildApiUrl } from './services/api.js'
 import GoogleFleetMap from './GoogleFleetMap.jsx'
 import { benchmarkTheme4, createAdminAlert, generateTheme4Scenario, getAdminState, getRecoveryCandidates, getSimulationState, getTheme4Evaluation, injectTheme4Failure, migrateAdminTasks, migrateTasks, resetTheme4, runTheme4Scenario, updateSimulationControl } from './services/simulation.js'
 import { AlertCard, AlertBell, AlertSummary, normalizeAlerts, UserMenu } from './AlertCenter.jsx'
+import useSimulationData from './hooks/useSimulationData.js'
 
 const API_URL = buildApiUrl('')
 const robots = Array.from({ length: 10 }, (_, index) => ({ id: `R-${String(index + 1).padStart(3, '0')}`, type: ['Scout', 'Carrier', 'Inspector', 'Heavy'][index % 4], health: index === 3 ? 38 : 80 + (index * 7) % 20, battery: 35 + (index * 11) % 64, status: index === 3 ? 'Critical' : index % 5 === 0 ? 'Warning' : 'Healthy' }))
@@ -14,54 +15,42 @@ export function Shell({ title: pageTitle, eyebrow: pageEyebrow, navigate, childr
   const title = currentPath === '/judge' ? 'Judge Mode' : pageTitle
   const eyebrow = currentPath === '/judge' ? 'HACKFUSION 2026 · THEME 4' : pageEyebrow
   const [darkMode, setDarkMode] = useState(() => window.localStorage.getItem('sentinel-theme') === 'dark')
-  const [simulation, setSimulation] = useState(null)
+  const { state: simulation, status: connectionStatus } = useSimulationData()
   useEffect(() => { window.localStorage.setItem('sentinel-theme', darkMode ? 'dark' : 'light'); document.documentElement.dataset.sentinelTheme = darkMode ? 'dark' : 'light' }, [darkMode])
   useEffect(() => {
-    let active = true
-    const refresh = () => getSimulationState().then((next) => { if (active) setSimulation(next) }).catch(() => null)
-    refresh()
-    const timer = window.setInterval(refresh, 2000)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [])
+    const indicator = document.querySelector('.shell-live')
+    if (indicator) indicator.textContent = connectionStatus === 'live' ? 'LIVE' : connectionStatus === 'offline' ? 'OFFLINE' : 'RECONNECTING'
+  }, [connectionStatus])
   const alerts = normalizeAlerts(simulation)
-  const commandRoutes = [['Command Center', '/', '⌂'], ['Robot Fleet', '/fleet', '◇'], ['Missions', '/missions', '◎'], ['Failure Analysis', '/failure-analysis', '△'], ['Recovery', '/recovery', '↻'], ['Digital Twin', '/digital-twin', '▦'], ['Fleet Alerts', '/alerts', '◌']]
+  const commandRoutes = [['Command Center', '/', '⌂'], ['Summary', '/summary', '◫'], ['Robot Fleet', '/fleet', '◇'], ['Missions', '/missions', '◎'], ['Failure Analysis', '/failure-analysis', '△'], ['Recovery', '/recovery', '↻'], ['Digital Twin', '/digital-twin', '▦'], ['Fleet Alerts', '/alerts', '◌']]
   const simulationRoute = ['Live Fleet Simulation', '/simulation', '◉']
-  return <div className={`app-shell authenticated-shell ${darkMode ? 'dark-operations' : ''} ${className}`}><aside className="sidebar"><button className="brand-lockup brand-home" onClick={() => navigate('/')} aria-label="Sentinel Robotics home"><span className="brand-mark">S</span><span className="brand-copy"><strong>SENTINEL</strong><small>ROBOTICS</small></span></button><div className="sidebar-label">COMMAND CENTER</div><nav className="sidebar-nav">{commandRoutes.map(([label, path, icon]) => <button key={path} className={`nav-item ${currentPath === path ? 'active' : ''}`} onClick={() => navigate(path)}><span className="nav-icon" aria-hidden="true">{icon}</span><span>{label}</span><span className="nav-arrow">›</span></button>)}</nav><div className="sidebar-label sidebar-section-label">SIMULATION</div><nav className="sidebar-nav">{simulationRoute && <button className={`nav-item ${currentPath === simulationRoute[1] ? 'active' : ''}`} onClick={() => navigate(simulationRoute[1])}><span className="nav-icon" aria-hidden="true">{simulationRoute[2]}</span><span>{simulationRoute[0]}</span><span className="nav-arrow">›</span></button>}</nav><div className="sidebar-bottom"><div className="system-status"><span className="pulse-dot" />SYSTEM MONITORING</div><button className="theme-toggle" onClick={() => setDarkMode((value) => !value)} aria-label={`Switch to ${darkMode ? 'light' : 'dark'} operations`}><span aria-hidden="true">{darkMode ? '☀' : '◐'}</span>{darkMode ? 'Light operations' : 'Dark operations'}</button></div></aside><main className="main-content"><header className="topbar"><div><div className="breadcrumb">SENTINEL ROBOTICS <span>/</span> {eyebrow}</div><h1>{title}</h1><p className="command-subtitle">Theme 4 robot fleet recovery under cascading failures</p></div><div className="top-actions"><span className="shell-live"><i /> SYSTEM ONLINE</span><span className="shell-stat">{simulation ? `${simulation.robots?.length || 0} ROBOTS` : 'SIMULATION'}</span><AlertBell alerts={alerts} navigate={navigate} /><UserMenu user={user} navigate={navigate} onLogout={onLogout} /></div></header>{children}</main></div>
+  const publicSiteRoute = ['Public Website', '/', '◈']
+  return <div className={`app-shell authenticated-shell ${darkMode ? 'dark-operations' : ''} ${className}`}><aside className="sidebar"><button className="brand-lockup brand-home" onClick={() => navigate('/')} aria-label="Sentinel Robotics home"><span className="brand-mark">S</span><span className="brand-copy"><strong>SENTINEL</strong><small>ROBOTICS</small></span></button><div className="sidebar-label">COMMAND CENTER</div><nav className="sidebar-nav">{commandRoutes.map(([label, path, icon]) => <button key={path} className={`nav-item ${currentPath === path ? 'active' : ''}`} onClick={() => navigate(path)}><span className="nav-icon" aria-hidden="true">{icon}</span><span>{label}</span><span className="nav-arrow">›</span></button>)}</nav><div className="sidebar-label sidebar-section-label">SIMULATION</div><nav className="sidebar-nav">{simulationRoute && <button className={`nav-item ${currentPath === simulationRoute[1] ? 'active' : ''}`} onClick={() => navigate(simulationRoute[1])}><span className="nav-icon" aria-hidden="true">{simulationRoute[2]}</span><span>{simulationRoute[0]}</span><span className="nav-arrow">›</span></button>}<button className={`nav-item ${currentPath === publicSiteRoute[1] ? 'active' : ''}`} onClick={() => navigate(publicSiteRoute[1])}><span className="nav-icon" aria-hidden="true">{publicSiteRoute[2]}</span><span>{publicSiteRoute[0]}</span><span className="nav-arrow">›</span></button></nav><div className="sidebar-bottom"><div className="system-status"><span className="pulse-dot" />SYSTEM MONITORING</div><button className="theme-toggle" onClick={() => setDarkMode((value) => !value)} aria-label={`Switch to ${darkMode ? 'light' : 'dark'} operations`}><span aria-hidden="true">{darkMode ? '☀' : '◐'}</span>{darkMode ? 'Light operations' : 'Dark operations'}</button></div></aside><main className="main-content"><header className="topbar"><div><div className="breadcrumb">SENTINEL ROBOTICS <span>/</span> {eyebrow}</div><h1>{title}</h1><p className="command-subtitle">Theme 4 robot fleet recovery under cascading failures</p></div><div className="top-actions"><span className="shell-live"><i /> SYSTEM ONLINE</span><span className="shell-stat">{simulation ? `${simulation.robots?.length || 0} ROBOTS` : 'SIMULATION'}</span><AlertBell alerts={alerts} navigate={navigate} /><UserMenu user={user} navigate={navigate} onLogout={onLogout} /></div></header>{children}</main></div>
 }
 
 export function CommandCenterPage({ navigate, user, onLogout }) {
-  const [report, setReport] = useState(null)
+  const { state, evaluation } = useSimulationData()
+  const metrics = evaluation || {}
   const [selectedId, setSelectedId] = useState('R-003')
   const [message, setMessage] = useState('')
-
-  useEffect(() => {
-    let active = true
-    const refresh = () => getTheme4Evaluation().then((next) => { if (active) setReport(next) }).catch((error) => { if (active) setMessage(error.message) })
-    refresh()
-    const timer = window.setInterval(refresh, 2000)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [])
-
-  const state = report?.state
-  const metrics = report?.evaluation || {}
   const robots = (state?.robots || []).slice(0, 10)
   const selectedRobot = robots.find((robot) => robot.id === selectedId) || robots[0]
-  const activeCount = robots.filter((robot) => ['healthy', 'recovering', 'idle'].includes(robot.status)).length
+  const activeCount = robots.filter((robot) => ['healthy', 'recovering'].includes(robot.status)).length
   const degradedCount = robots.filter((robot) => ['warning', 'critical'].includes(robot.status)).length
   const failedCount = robots.filter((robot) => robot.status === 'failed').length
   const chargingCount = robots.filter((robot) => robot.status === 'charging').length
-  const activeTasks = Object.values(state?.tasks || {}).filter((task) => task.status !== 'COMPLETED')
+  const activeTasks = Object.values(state?.tasks || {}).filter((task) => !['COMPLETED', 'FAILED'].includes(task.status))
   const atRiskCount = activeTasks.filter((task) => task.status === 'AT RISK').length
   const alerts = (state?.notifications || []).slice(0, 4)
 
   return <Shell title="Command Center" eyebrow="FLEET RECOVERY OPERATIONS" navigate={navigate} user={user} onLogout={onLogout}>
-    <section className="metric-grid"><Metric label="Robots" value={robots.length || '—'} detail="authoritative fleet" /><Metric label="Active / degraded" value={`${activeCount} / ${degradedCount}`} detail="live status" /><Metric label="Failed / charging" value={`${failedCount} / ${chargingCount}`} detail="capacity impact" /><Metric label="Tasks at risk" value={atRiskCount} detail={`${activeTasks.length} active tasks`} /><Metric label="Mission continuity" value={metrics.mission_preservation === undefined ? '—' : `${metrics.mission_preservation}%`} detail="simulation-derived" /><Metric label="Failure risk" value={state?.predictions?.length ? `${state.predictions[state.predictions.length - 1].probability}%` : '—'} detail="latest prediction" /></section>
+    <section className="metric-grid"><Metric label="Robots" value={robots.length || '—'} detail="authoritative fleet" /><Metric label="Active / degraded" value={`${activeCount} / ${degradedCount}`} detail="live status" /><Metric label="Failed / charging" value={`${failedCount} / ${chargingCount}`} detail="capacity impact" /><Metric label="Tasks at risk" value={atRiskCount} detail={`${activeTasks.length} active tasks`} /><Metric label="Mission continuity" value={metrics.mission_preservation === undefined ? '—' : `${metrics.mission_preservation}%`} detail="derived from task ownership" /><Metric label="Mission completion" value={metrics.mission_completion_rate === undefined ? '—' : `${metrics.mission_completion_rate}%`} detail="average task progress" /><Metric label="Failure risk" value={state?.predictions?.length ? `${state.predictions[state.predictions.length - 1].probability}%` : '—'} detail="latest telemetry prediction" /></section>
     {message && <p className="profile-message" role="status">{message}</p>}
     <div className="command-overview-grid"><section className="panel command-map-panel"><div className="panel-heading"><div><h2>Live fleet map</h2><p>{robots.length} authoritative robots · position and routes</p></div></div><GoogleFleetMap robots={robots} selectedRobot={selectedRobot} onSelect={(robot) => { window.sessionStorage.setItem('sentinel-selected-robot', robot.id); navigate('/digital-twin') }} onMessage={setMessage} /></section><section className="panel command-alert-panel"><div className="panel-heading"><div><h2>Recovery status</h2><p>{state?.migrations?.length ? `${state.migrations.length} task migration(s) recorded` : 'No active task migration'}</p></div><div className="command-panel-actions"><button className="outline-button" onClick={() => navigate('/judge')}>Judge Mode</button><button className="outline-button" onClick={() => navigate('/simulation')}>Open simulation</button></div></div><div className="data-list"><div><strong>Latest task migration</strong><span>{state?.migrations?.at(-1)?.status || 'Standby'}</span></div><div><strong>Current mission preservation</strong><span>{metrics.mission_preservation === undefined ? '—' : `${metrics.mission_preservation}%`}</span></div></div><div className="command-recent-alerts"><h3>Recent alerts</h3>{alerts.map((alert, index) => <div key={`${alert.timestamp || alert.title}-${index}`}><strong>{alert.title || alert.type || 'Fleet event'}</strong><span>{alert.message || alert.robot || 'No details supplied'}</span></div>)}{!alerts.length && <p>No active alerts.</p>}<button className="text-button" onClick={() => navigate('/alerts')}>View fleet alerts →</button></div></section></div>
   </Shell>
 }
 
-function Panel({ title, children }) { return <section className="panel page-panel"><div className="panel-heading"><h2>{title}</h2></div>{children}</section> }
+function Panel({ title, children }) { return <section className="panel page-panel summary-card-panel"><div className="panel-heading"><h2>{title}</h2></div>{children}</section> }
 function Metric({ label, value, detail }) { return <div className="metric-card"><span className="metric-label">{label}</span><div className="metric-value">{value}</div><div className="metric-change positive">{detail}</div></div> }
 function DigitalTwin({ robot, onClose, onMigrate }) { const [busy, setBusy] = useState(false); const [result, setResult] = useState(null); if (!robot) return null; const migrate = async () => { setBusy(true); setResult(null); try { const response = await migrateTasks(robot.id); setResult(response.migration); onMigrate?.(response.state); } catch (error) { setResult({ status: 'blocked', reason: error.message, code: error.code }); } finally { setBusy(false) } }; const risk = robot.probability === undefined ? 'Not available' : `${robot.probability}%`; return <div className="modal-backdrop" onClick={onClose}><section className="digital-twin panel" onClick={(event) => event.stopPropagation()}><button className="small-icon" onClick={onClose} aria-label="Close digital twin">×</button><span className="public-kicker">DIGITAL TWIN · SIMULATION</span><h2>{robot.id}</h2><p>{robot.type} · {robot.status}</p><div className="metric-grid"><Metric label="Health" value={`${robot.health}%`} detail="authoritative state" /><Metric label="Battery" value={`${robot.battery}%`} detail="authoritative state" /><Metric label="Risk" value={risk} detail="prediction record" /></div>{result && <div className={`migration-result ${result.status === 'blocked' ? 'blocked' : ''}`}><strong>{result.status === 'blocked' ? 'MIGRATION BLOCKED' : 'TASK MIGRATION COMPLETE'}</strong>{result.status === 'blocked' ? <p>{result.reason}{result.code ? ` (${result.code})` : ''}</p> : <p>Source: {result.source_robot}<br />Destination: {result.destination_robot}<br />Tasks migrated: {result.task_ids.join(', ')}<br />Reason: {result.reason}<br />Mission impact: Protected</p>}</div>}<div className="profile-actions"><button className="primary-button" onClick={migrate} disabled={busy || result?.status === 'completed'}>{busy ? 'Migrating...' : result?.status === 'completed' ? 'Migration complete' : 'Migrate current tasks'}</button><button className="outline-button" onClick={onClose}>Close</button></div></section></div> }
 
@@ -223,31 +212,25 @@ export function JudgeModePage({ navigate, user, onLogout }) {
       <button className="primary-button" onClick={startJudgeDemo} disabled={busy}>{busy ? 'Running scenario…' : 'START JUDGE DEMO'}</button>
     </section>
     <div className="judge-sections">
-      <section className="judge-section panel"><span className="failure-kicker">01 · FAILURE DETECTION &amp; PREDICTION</span><h2>Risk before impact</h2><div className="data-list"><div><strong>Robot health</strong><span>{display(state?.robots?.find((robot) => robot.id === recoveryPrediction?.robot_id)?.health, '%')}</span></div><div><strong>Predicted failure</strong><span>{recoveryPrediction ? `${recoveryPrediction.robot_id} · ${recoveryPrediction.subsystem}` : 'No recorded prediction'}</span></div><div><strong>Risk / confidence</strong><span>{recoveryPrediction ? `${recoveryPrediction.probability}% / ${Math.round(recoveryPrediction.confidence * 100)}%` : '—'}</span></div><div><strong>Actual failure</strong><span>{recoveryFailure ? `${recoveryFailure.robot_id} · ${recoveryFailure.subsystem}` : 'No recorded failure'}</span></div><div><strong>Prediction timeline</strong><span>{predictionTimeline.length ? predictionTimeline.map((event) => `${event.robot || 'Fleet'} ${event.type}`).join(' → ') : 'No recorded prediction timeline'}</span></div></div></section>
-      <section className="judge-section panel"><span className="failure-kicker">02 · FAILURE PROPAGATION &amp; IMPACT</span><h2>Impact chain</h2><div className="judge-propagation-graph" aria-label="Live failure propagation chain">{propagationNodes.length ? propagationNodes.map((node, index) => <span key={`${node}-${index}`}>{index > 0 && <i aria-hidden="true">→</i>}<strong>{node}</strong></span>) : <span>Awaiting failure propagation</span>}</div><div className="data-list"><div><strong>Failed source / severity</strong><span>{recoveryFailure ? `${recoveryFailure.robot_id} · ${recoveryFailure.severity}` : '—'}</span></div><div><strong>Affected task / mission</strong><span>{protectedTask?.id || '—'} / {protectedTask?.mission_id || '—'}</span></div><div><strong>Affected robots</strong><span>{affectedRobots.length ? affectedRobots.join(', ') : '—'}</span></div><div><strong>Fleet capacity active / total</strong><span>{display(metrics.active)} / {display(metrics.robots)}</span></div><div><strong>Cascade depth</strong><span>{display(metrics.cascade_depth)}</span></div><div><strong>Affected / contained nodes</strong><span>{display(metrics.affected_nodes)} / {display(metrics.contained_nodes)}</span></div></div></section>
-      <section className="judge-section panel"><span className="failure-kicker">03 · TASK REALLOCATION &amp; FLEET REBALANCING</span><h2>Replacement candidates</h2><div className="judge-candidates">{candidates.filter((candidate, index) => index < 3 || candidate.robot_id === migration?.destination_robot).map((candidate) => <div key={candidate.robot_id} className={candidate.robot_id === migration?.destination_robot ? 'selected' : ''}><strong>{candidate.robot_id}{candidate.robot_id === migration?.destination_robot ? ' · SELECTED' : ''}</strong><span>Score {candidate.score} · Health {candidate.health}% · Battery {candidate.battery}%</span><small>Distance {candidate.distance} · Capacity {candidate.capacity}% · {candidate.deadline}</small></div>)}{!candidates.length && <p>Candidate scores appear after simulation data loads.</p>}</div><p className="judge-evidence-line">Replacement: {migration?.destination_robot || 'No task migration recorded'}</p></section>
-      <section className="judge-section panel"><span className="failure-kicker">04 · MISSION CONTINUITY &amp; RECOVERY</span><h2>Protected task</h2><div className="data-list"><div><strong>Assigned robot</strong><span>{protectedTask?.assigned_robot || '—'}</span></div><div><strong>Task status</strong><span>{protectedTask?.status || '—'}</span></div><div><strong>Mission status</strong><span>{protectedMission ? `${protectedMission.status || 'IN PROGRESS'} · ${protectedMission.progress}%` : '—'}</span></div><div><strong>Progress / remaining</strong><span>{display(protectedTask?.progress, '%')} / {display(protectedTask?.remaining_progress, '%')}</span></div><div><strong>Progress preserved at interruption</strong><span>{display(protectedTask?.recovery_start_progress, '%')}</span></div><div><strong>Recovery time</strong><span>{display(protectedTask?.recovery_time_seconds, ' seconds')}</span></div><div><strong>Additional travel</strong><span>{display(protectedTask?.additional_travel_units, ' map units')}</span></div><div><strong>Interruption point</strong><span>{protectedTask?.interruption_point ? `${protectedTask.interruption_point.x}, ${protectedTask.interruption_point.y}` : 'Not recorded'}</span></div></div></section>
-      <section className="judge-section panel"><span className="failure-kicker">05 · TECHNICAL IMPLEMENTATION &amp; PERFORMANCE</span><h2>Measured simulation output</h2><div className="data-list"><div><strong>Mission preservation</strong><span>{display(metrics.mission_preservation, '%')}</span></div><div><strong>Baseline / recovered performance</strong><span>{display(metrics.baseline_performance, '%')} / {display(metrics.recovered_performance, '%')}</span></div><div><strong>Tasks migrated / failed</strong><span>{display(metrics.tasks_migrated)} / {display(metrics.tasks_failed)}</span></div><div><strong>Battery used / fleet utilization</strong><span>{display(batteryCost, ' pp')} / {display(metrics.fleet_utilization_after, '%')}</span></div></div></section>
+      <section className="judge-section panel summary-card-panel"><span className="failure-kicker">01 · FAILURE DETECTION &amp; PREDICTION</span><h2>Risk before impact</h2><div className="data-list"><div><strong>Robot health</strong><span>{display(state?.robots?.find((robot) => robot.id === recoveryPrediction?.robot_id)?.health, '%')}</span></div><div><strong>Predicted failure</strong><span>{recoveryPrediction ? `${recoveryPrediction.robot_id} · ${recoveryPrediction.subsystem}` : 'No recorded prediction'}</span></div><div><strong>Risk / confidence</strong><span>{recoveryPrediction ? `${recoveryPrediction.probability}% / ${Math.round(recoveryPrediction.confidence * 100)}%` : '—'}</span></div><div><strong>Actual failure</strong><span>{recoveryFailure ? `${recoveryFailure.robot_id} · ${recoveryFailure.subsystem}` : 'No recorded failure'}</span></div><div><strong>Prediction timeline</strong><span>{predictionTimeline.length ? predictionTimeline.map((event) => `${event.robot || 'Fleet'} ${event.type}`).join(' → ') : 'No recorded prediction timeline'}</span></div></div></section>
+      <section className="judge-section panel summary-card-panel"><span className="failure-kicker">02 · FAILURE PROPAGATION &amp; IMPACT</span><h2>Impact chain</h2><div className="judge-propagation-graph" aria-label="Live failure propagation chain">{propagationNodes.length ? propagationNodes.map((node, index) => <span key={`${node}-${index}`}>{index > 0 && <i aria-hidden="true">→</i>}<strong>{node}</strong></span>) : <span>Awaiting failure propagation</span>}</div><div className="data-list"><div><strong>Failed source / severity</strong><span>{recoveryFailure ? `${recoveryFailure.robot_id} · ${recoveryFailure.severity}` : '—'}</span></div><div><strong>Affected task / mission</strong><span>{protectedTask?.id || '—'} / {protectedTask?.mission_id || '—'}</span></div><div><strong>Affected robots</strong><span>{affectedRobots.length ? affectedRobots.join(', ') : '—'}</span></div><div><strong>Fleet capacity active / total</strong><span>{display(metrics.active)} / {display(metrics.robots)}</span></div><div><strong>Cascade depth</strong><span>{display(metrics.cascade_depth)}</span></div><div><strong>Affected / contained nodes</strong><span>{display(metrics.affected_nodes)} / {display(metrics.contained_nodes)}</span></div></div></section>
+      <section className="judge-section panel summary-card-panel"><span className="failure-kicker">03 · TASK REALLOCATION &amp; FLEET REBALANCING</span><h2>Replacement candidates</h2><div className="judge-candidates">{candidates.filter((candidate, index) => index < 3 || candidate.robot_id === migration?.destination_robot).map((candidate) => <div key={candidate.robot_id} className={candidate.robot_id === migration?.destination_robot ? 'selected' : ''}><strong>{candidate.robot_id}{candidate.robot_id === migration?.destination_robot ? ' · SELECTED' : ''}</strong><span>Score {candidate.score} · Health {candidate.health}% · Battery {candidate.battery}%</span><small>Distance {candidate.distance} · Capacity {candidate.capacity}% · {candidate.deadline}</small></div>)}{!candidates.length && <p>Candidate scores appear after simulation data loads.</p>}</div><p className="judge-evidence-line">Replacement: {migration?.destination_robot || 'No task migration recorded'}</p></section>
+      <section className="judge-section panel summary-card-panel"><span className="failure-kicker">04 · MISSION CONTINUITY &amp; RECOVERY</span><h2>Protected task</h2><div className="data-list"><div><strong>Assigned robot</strong><span>{protectedTask?.assigned_robot || '—'}</span></div><div><strong>Task status</strong><span>{protectedTask?.status || '—'}</span></div><div><strong>Mission status</strong><span>{protectedMission ? `${protectedMission.status || 'IN PROGRESS'} · ${protectedMission.progress}%` : '—'}</span></div><div><strong>Progress / remaining</strong><span>{display(protectedTask?.progress, '%')} / {display(protectedTask?.remaining_progress, '%')}</span></div><div><strong>Progress preserved at interruption</strong><span>{display(protectedTask?.recovery_start_progress, '%')}</span></div><div><strong>Recovery time</strong><span>{display(protectedTask?.recovery_time_seconds, ' seconds')}</span></div><div><strong>Additional travel</strong><span>{display(protectedTask?.additional_travel_units, ' map units')}</span></div><div><strong>Interruption point</strong><span>{protectedTask?.interruption_point ? `${protectedTask.interruption_point.x}, ${protectedTask.interruption_point.y}` : 'Not recorded'}</span></div></div></section>
+      <section className="judge-section panel summary-card-panel"><span className="failure-kicker">05 · TECHNICAL IMPLEMENTATION &amp; PERFORMANCE</span><h2>Measured simulation output</h2><div className="data-list"><div><strong>Mission preservation</strong><span>{display(metrics.mission_preservation, '%')}</span></div><div><strong>Baseline / recovered performance</strong><span>{display(metrics.baseline_performance, '%')} / {display(metrics.recovered_performance, '%')}</span></div><div><strong>Tasks migrated / failed</strong><span>{display(metrics.tasks_migrated)} / {display(metrics.tasks_failed)}</span></div><div><strong>Battery used / fleet utilization</strong><span>{display(batteryCost, ' pp')} / {display(metrics.fleet_utilization_after, '%')}</span></div></div></section>
     </div>
   </Shell>
 }
 
 export function DigitalTwinPage({ navigate, user, onLogout }) {
-  const [state, setState] = useState(null)
+  const { state } = useSimulationData()
   const [selectedId, setSelectedId] = useState(() => window.sessionStorage.getItem('sentinel-selected-robot') || 'R-003')
-
-  useEffect(() => {
-    let active = true
-    const refresh = () => getSimulationState().then((next) => { if (active) setState(next) }).catch(() => null)
-    refresh()
-    const timer = window.setInterval(refresh, 2000)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [])
 
   const robots = state?.robots || []
   const robot = robots.find((item) => item.id === selectedId) || robots[0]
   const task = robot && state?.tasks?.[robot.task_id || robot.current_task]
   const failures = (state?.failures || []).filter((item) => item.robot_id === robot?.id)
+  const prediction = (state?.predictions || []).find((item) => item.robot_id === robot?.id)
+  const mission = state?.missions?.find((item) => item.id === robot?.mission_id)
   const subsystemStatus = (subsystem) => failures.find((item) => item.subsystem === subsystem)?.severity || 'No recorded event'
 
   return <Shell title="Digital Twin" eyebrow="ROBOT TELEMETRY" navigate={navigate} user={user} onLogout={onLogout}>
@@ -256,15 +239,203 @@ export function DigitalTwinPage({ navigate, user, onLogout }) {
         <div className="digital-twin-robot-list">{robots.map((item) => <button key={item.id} className={item.id === robot?.id ? 'selected' : ''} onClick={() => { setSelectedId(item.id); window.sessionStorage.setItem('sentinel-selected-robot', item.id) }}><strong>{item.id}</strong><span>{item.status} · {item.battery}% battery</span></button>)}</div>
       </Panel>
       {robot ? <Panel title={`${robot.id} · ${robot.type}`}>
-        <div className="metric-grid"><Metric label="Health" value={`${robot.health}%`} detail={robot.status} /><Metric label="Battery" value={`${robot.battery}%`} detail={robot.charging_state || 'current reserve'} /><Metric label="Task progress" value={task ? `${task.progress || 0}%` : '—'} detail={task?.status || 'No active task'} /></div>
-        <div className="data-list"><div><strong>Task / mission</strong><span>{robot.task_id || robot.current_task || 'Unassigned'} / {task?.mission_id || robot.mission_id || '—'}</span></div><div><strong>Position</strong><span>{robot.position ? `${robot.position.x}, ${robot.position.y}` : 'Not reported'}</span></div><div><strong>Failure point</strong><span>{robot.failure_position ? `${robot.failure_position.x}, ${robot.failure_position.y}` : 'Not recorded'}</span></div><div><strong>Interruption point</strong><span>{task?.interruption_point ? `${task.interruption_point.x}, ${task.interruption_point.y}` : 'Not recorded'}</span></div><div><strong>Recovery state</strong><span>{robot.recovery_state || robot.operating_state || 'Not reported'}</span></div><div><strong>Motor · navigation · communication · sensors</strong><span>{['motor', 'navigation', 'communication', 'sensor'].map((item) => `${item}: ${subsystemStatus(item)}`).join(' · ')}</span></div></div>
-        <section className="digital-twin-route"><h3>Route waypoints</h3><div className="data-list">{(robot.waypoints || []).map((point, index) => <div key={`${point.x}-${point.y}-${index}`}><strong>{index === 0 ? 'Current / origin' : `Waypoint ${index}`}</strong><span>{point.x}, {point.y}</span></div>)}{!robot.waypoints?.length && <p>No route reported.</p>}</div></section>
+        <GoogleFleetMap robots={robots} selectedRobot={robot} onSelect={(item) => setSelectedId(item.id)} />
+        <div className="metric-grid"><Metric label="Health" value={`${robot.health}%`} detail={robot.status} /><Metric label="Battery" value={`${robot.battery}%`} detail={robot.charging_state || 'current reserve'} /><Metric label="Speed" value={`${robot.speed || 0} map units/s`} detail="backend telemetry" /><Metric label="Task progress" value={task ? `${task.progress || 0}%` : '—'} detail={task?.status || 'No active task'} /><Metric label="Failure risk" value={prediction ? `${prediction.probability}%` : 'Not available'} detail={prediction?.model || 'No prediction record'} /></div>
+        <div className="digital-twin-detail-grid">
+          <div className="dashcard">
+            <div className="dashcard-header">Mission overview</div>
+            <div className="dashcard-grid">
+              <div className="dashcard-item"><span>Task / mission</span><strong>{robot.task_id || robot.current_task || 'Unassigned'} / {mission?.name || task?.mission_id || robot.mission_id || '—'}</strong></div>
+              <div className="dashcard-item"><span>Mission status</span><strong>{mission?.status || 'Not assigned'}</strong></div>
+              <div className="dashcard-item"><span>Position</span><strong>{robot.position ? `${robot.position.x}, ${robot.position.y}` : 'Not reported'}</strong></div>
+              <div className="dashcard-item"><span>Destination</span><strong>{robot.destination || task?.destination || 'Not assigned'}</strong></div>
+              <div className="dashcard-item"><span>Route</span><strong>{(robot.route || []).join(' → ') || 'No active route'}</strong></div>
+              <div className="dashcard-item"><span>Failure point</span><strong>{robot.failure_position ? `${robot.failure_position.x}, ${robot.failure_position.y}` : 'Not recorded'}</strong></div>
+              <div className="dashcard-item"><span>Interruption point</span><strong>{task?.interruption_point ? `${task.interruption_point.x}, ${task.interruption_point.y}` : 'Not recorded'}</strong></div>
+              <div className="dashcard-item"><span>Telemetry evidence</span><strong>{prediction ? `${prediction.subsystem || 'general'} · health ${prediction.indicators?.health ?? robot.health}% · battery ${prediction.indicators?.battery ?? robot.battery}%` : 'No recorded prediction indicators'}</strong></div>
+              <div className="dashcard-item"><span>Recovery state</span><strong>{robot.recovery_state || robot.operating_state || 'Not reported'}</strong></div>
+              <div className="dashcard-item"><span>Last update</span><strong>{robot.last_update || 'Not reported'}</strong></div>
+            </div>
+          </div>
+
+          <div className="dashcard">
+            <div className="dashcard-header">Subsystem health</div>
+            <div className="dashcard-grid compact">
+              {['motor', 'navigation', 'communication', 'sensor'].map((item) => (
+                <div key={item} className="dashcard-item mini">
+                  <span>{item}</span>
+                  <strong>{subsystemStatus(item)}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="dashcard dashcard-wide">
+            <div className="dashcard-header">Route waypoints</div>
+            <div className="dashcard-grid compact">
+              {(robot.waypoints || []).map((point, index) => (
+                <div key={`${point.x}-${point.y}-${index}`} className="dashcard-item mini">
+                  <span>{index === 0 ? 'Current / origin' : `Waypoint ${index}`}</span>
+                  <strong>{point.x}, {point.y}</strong>
+                </div>
+              ))}
+              {!robot.waypoints?.length && <div className="dashcard-item"><span>Route</span><strong>No route reported.</strong></div>}
+            </div>
+          </div>
+        </div>
       </Panel> : <Panel title="Robot telemetry"><p>Waiting for authoritative fleet state.</p></Panel>}
     </div>
   </Shell>
 }
 
 export function GenericPublicPage({ title, navigate, user, onLogout, children }) { return <Shell title={title} eyebrow={title.toUpperCase()} navigate={navigate} user={user} onLogout={onLogout}><Panel title={title}>{children || <p>Sentinel Robotics operational intelligence for resilient fleet recovery.</p>}</Panel></Shell> }
+
+export function SummaryPage({ navigate, user, onLogout }) {
+  const { state, evaluation } = useSimulationData()
+  const metrics = evaluation || {}
+  const robots = state?.robots || []
+  const activeRobots = robots.filter((robot) => ['healthy', 'warning', 'recovering', 'active'].includes(String(robot.status).toLowerCase())).length
+  const failedRobots = robots.filter((robot) => ['failed', 'critical'].includes(String(robot.status).toLowerCase())).length
+  const chargingRobots = robots.filter((robot) => String(robot.status).toLowerCase() === 'charging').length
+  const atRiskTasks = Object.values(state?.tasks || {}).filter((task) => task.status === 'AT RISK' || task.status === 'RECOVERING').length
+  const missionContinuity = metrics.mission_preservation ?? 0
+  const missionRecords = state?.missions || []
+  const failureRecords = state?.failures || []
+  const predictionRecords = state?.predictions || []
+  const recentFailure = failureRecords[failureRecords.length - 1]
+  const latestPrediction = predictionRecords[predictionRecords.length - 1]
+
+  return <Shell title="Summary" eyebrow="PROJECT SUMMARY" navigate={navigate} user={user} onLogout={onLogout}>
+    <section className="summary-page">
+      <header className="summary-hero panel">
+        <div>
+          <span className="failure-kicker">SENTINEL ROBOTICS</span>
+          <h2>Keep the mission moving.</h2>
+          <p>Intelligent fleet recovery under cascading failures.</p>
+        </div>
+        <button className="primary-button" onClick={() => navigate('/simulation')}>Open live simulation</button>
+      </header>
+
+      <div className="metric-grid">
+        <Metric label="Robots" value={state ? robots.length : '—'} detail="authoritative active fleet" />
+        <Metric label="Active Robots" value={activeRobots} detail="operational" />
+        <Metric label="Failed Robots" value={failedRobots} detail="active failures" />
+        <Metric label="Charging Robots" value={chargingRobots} detail="battery recovery" />
+        <Metric label="Tasks at Risk" value={atRiskTasks} detail="protect operations" />
+        <Metric label="Mission Continuity" value={state ? `${missionContinuity}%` : '—'} detail="derived from mission task states" />
+      </div>
+
+      <section className="summary-section panel summary-card-panel">
+        <div className="summary-section-label">LIVE FLEET DATA</div>
+        <div className="summary-live-grid">
+          <div className="summary-data-panel">
+            <h3>Mission continuity</h3>
+            <div className="data-list">
+              {missionRecords.length ? missionRecords.map((mission) => (
+                <div key={mission.id || mission.name}>
+                  <strong>{mission.name || mission.id || 'Mission'}</strong>
+                  <span>{mission.status || 'SIMULATION STATE'} · {mission.progress ?? '—'}%</span>
+                  <small>{mission.priority || 'Priority unavailable'} · {mission.tasks?.length || 0} active tasks</small>
+                </div>
+              )) : <div><strong>No mission records</strong><span>Awaiting live simulation state</span></div>}
+            </div>
+          </div>
+          <div className="summary-data-panel">
+            <h3>Failure and recovery state</h3>
+            <div className="data-list">
+              <div>
+                <strong>Latest failure</strong>
+                <span>{recentFailure ? `${recentFailure.robot_id || 'Robot'} · ${recentFailure.subsystem || 'system'}` : 'No recorded failure'}</span>
+                <small>{recentFailure ? `Severity: ${recentFailure.severity || 'unknown'}` : 'Awaiting incident'}</small>
+              </div>
+              <div>
+                <strong>Latest prediction</strong>
+                <span>{latestPrediction ? `${latestPrediction.robot_id || 'Robot'} · ${latestPrediction.probability ?? '—'}% risk` : 'No prediction available'}</span>
+                <small>{latestPrediction ? `Confidence: ${Math.round((latestPrediction.confidence ?? 0) * 100)}%` : 'Awaiting risk signal'}</small>
+              </div>
+              <div>
+                <strong>Recovery snapshots</strong>
+                <span>{state?.migrations?.length ? `${state.migrations.length} task migrations` : 'No recovery event'}</span>
+                <small>{state?.migrations?.at(-1)?.status || 'Standby'}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="summary-section panel summary-card-panel">
+        <div className="summary-section-label">THE PROBLEM</div>
+        <div className="summary-card-feature">
+          <h3>Large robot fleets can experience cascading failures that propagate across tasks, missions, and fleet capacity.</h3>
+          <p>Sentinel detects failures, predicts risk, analyzes impact, reassigns work, rebalances capacity, and preserves mission continuity under degraded robot health.</p>
+        </div>
+      </section>
+
+      <section className="summary-section panel summary-card-panel">
+        <div className="summary-section-label">RECOVERY FLOW</div>
+        <div className="summary-flow summary-flow-cards">
+          <div className="summary-flow-card"><strong>Telemetry</strong><span>↓</span></div>
+          <div className="summary-flow-card"><strong>Failure Detection</strong><span>↓</span></div>
+          <div className="summary-flow-card"><strong>Failure Prediction</strong><span>↓</span></div>
+          <div className="summary-flow-card"><strong>Impact Analysis</strong><span>↓</span></div>
+          <div className="summary-flow-card"><strong>Task Reallocation</strong><span>↓</span></div>
+          <div className="summary-flow-card"><strong>Fleet Rebalancing</strong><span>↓</span></div>
+          <div className="summary-flow-card highlight"><strong>Mission Recovery</strong></div>
+        </div>
+      </section>
+
+      <section className="summary-section panel summary-card-panel">
+        <div className="summary-section-label">THEME 4 CATEGORIES</div>
+        <div className="summary-cards">
+          <article className="summary-category-card"><span>01</span><h4>Failure Detection & Prediction</h4><small>Simulation-based risk detection and forecasting</small></article>
+          <article className="summary-category-card"><span>02</span><h4>Failure Propagation & Impact Analysis</h4><small>Task and mission dependency tracing</small></article>
+          <article className="summary-category-card"><span>03</span><h4>Dynamic Task Reallocation & Fleet Rebalancing</h4><small>Candidate ranking and live migration logic</small></article>
+          <article className="summary-category-card"><span>04</span><h4>Mission Continuity & Recovery</h4><small>Interruption-point continuation and preservation</small></article>
+          <article className="summary-category-card"><span>05</span><h4>Technical Implementation, Simulation & Performance</h4><small>FastAPI, React, Vite, real-time state, and deterministic scenarios</small></article>
+        </div>
+      </section>
+
+      <section className="summary-section panel summary-card-panel">
+        <div className="summary-section-label">HOW RECOVERY WORKS</div>
+        <ol className="summary-steps summary-steps-cards">
+          <li>Detect abnormal robot telemetry.</li>
+          <li>Predict failure risk and confidence.</li>
+          <li>Analyze the affected tasks and mission impact.</li>
+          <li>Reallocate to a healthy available robot.</li>
+          <li>Rebalance fleet workload and battery capacity.</li>
+          <li>Continue the remaining task and recover the mission.</li>
+        </ol>
+      </section>
+
+      <section className="summary-section panel summary-card-panel">
+        <div className="summary-section-label">TECHNOLOGY</div>
+        <div className="summary-tech-grid">
+          <div className="summary-tech-card"><strong>Frontend</strong><span>React · Vite</span></div>
+          <div className="summary-tech-card"><strong>Backend</strong><span>FastAPI · Python</span></div>
+          <div className="summary-tech-card"><strong>Realtime</strong><span>WebSocket</span></div>
+          <div className="summary-tech-card"><strong>Authentication</strong><span>Firebase Authentication</span></div>
+          <div className="summary-tech-card"><strong>Deployment</strong><span>Vercel · Render</span></div>
+          <div className="summary-tech-card"><strong>Simulation</strong><span>Authoritative fleet simulation engine</span></div>
+        </div>
+      </section>
+
+      <section className="summary-section panel summary-card-panel">
+        <div className="summary-section-label">JUDGE DEMO FLOW</div>
+        <ol className="summary-steps summary-steps-cards">
+          <li>Open Command Center.</li>
+          <li>View 10 robots and live state.</li>
+          <li>Start simulation.</li>
+          <li>Observe routes and telemetry.</li>
+          <li>Inject a robot failure.</li>
+          <li>Review prediction, propagation, and task impact.</li>
+          <li>Allow automatic recovery to select a replacement.</li>
+          <li>Track the remaining task and mission continuity.</li>
+        </ol>
+        <button className="primary-button summary-primary-button" onClick={() => navigate('/simulation')}>Open live simulation</button>
+      </section>
+    </section>
+  </Shell>
+}
 
 export function AdminPage({ navigate, admin, onLogout }) { const [tab, setTab] = useState('Overview'); const [query, setQuery] = useState(''); const filtered = robots.filter((robot) => robot.id.includes(query.toUpperCase())); return <Shell title="Admin control center" eyebrow="ADMIN" navigate={navigate} user={{ name: admin?.username || 'Administrator' }} onLogout={onLogout}><div className="admin-tabs">{['Overview', 'Users', 'Fleet', 'Alerts', 'Analytics', 'Activity', 'System', 'Settings'].map((item) => <button className={tab === item ? 'active' : ''} key={item} onClick={() => setTab(item)}>{item}</button>)}</div>{tab === 'Overview' && <><div className="metric-grid"><Metric label="Users" value="1" detail="active" /><Metric label="Robots" value="100" detail="simulated fleet" /><Metric label="Missions" value="3" detail="active" /><Metric label="Alerts" value="2" detail="requires review" /></div><Panel title="Recent activity"><div className="data-list">{events.map((event) => <div key={event.time}><strong>{event.type} · {event.robot}</strong><span>{event.status}</span><small>{event.description}</small></div>)}</div></Panel></>}{tab === 'Users' && <Panel title="Users"><div className="table-tools"><input className="profile-input" placeholder="Search users" value={query} onChange={(event) => setQuery(event.target.value)} /></div><div className="data-list"><div><strong>Authenticated operators</strong><span>{query ? 'No matching users' : '1 active user'}</span></div></div></Panel>}{tab === 'Fleet' && <Panel title="Fleet"><div className="fleet-grid">{robots.slice(0, 20).map((robot) => <div className="fleet-robot" key={robot.id}><strong>{robot.id}</strong><span>{robot.type}</span><small>{robot.status} · {robot.health}%</small></div>)}</div></Panel>}{['Alerts', 'Analytics', 'Activity', 'System', 'Settings'].includes(tab) && <Panel title={tab}><div className="data-list"><div><strong>{tab} data</strong><span>Connected</span><small>Authoritative Sentinel Robotics simulation state.</small></div></div></Panel>}</Shell> }
 
@@ -281,7 +452,7 @@ export function AdminManagementPage({ navigate, admin, onLogout }) {
   const submitAlert = async (event) => { event.preventDefault(); await createAdminAlert({ recipient: 'all', severity: 'warning', title: alertTitle, message: alertMessage }, token); setAlertTitle(''); setAlertMessage(''); await refresh() }
   const content = {
     Overview: <><div className="metric-grid"><Metric label="Users" value="1" detail="authoritative" /><Metric label="Robots" value={fleet.length} detail="live simulation" /><Metric label="Missions" value={state?.missions?.length || 0} detail="active" /><Metric label="Recovery events" value={state?.events?.length || 0} detail="recorded" /></div><Panel title="Recent activity"><div className="data-list">{(state?.activity || state?.events || []).slice(0, 8).map((event, index) => <div key={`${event.timestamp || event.time}-${index}`}><strong>{event.type}</strong><small>{event.message}</small></div>)}</div></Panel></>,
-    Users: <Panel title="Users"><div className="table-tools"><input className="profile-input" placeholder="Search users" value={query} onChange={(event) => setQuery(event.target.value)} /></div><div className="data-list"><div><strong>Alex Rivera</strong><span>{query && !'Alex Rivera'.toLowerCase().includes(query.toLowerCase()) ? 'No match' : 'Active operator'}</span><small>alex.rivera@sentinel.example</small></div></div></Panel>,
+    Users: <Panel title="Users"><div className="table-tools"><input className="profile-input" placeholder="Search users" value={query} onChange={(event) => setQuery(event.target.value)} /></div><div className="data-list"><div><strong>Public visitor</strong><span>{query && !'Public visitor'.toLowerCase().includes(query.toLowerCase()) ? 'No match' : 'Public access'}</span><small>preview@sentinel.local</small></div></div></Panel>,
     Fleet: <Panel title="Fleet management"><div className="fleet-grid">{fleet.filter((robot) => robot.id.includes(query.toUpperCase())).map((robot) => <button className="fleet-robot" key={robot.id} onClick={async () => { if (robot.id === 'R-004') { await migrateAdminTasks(robot.id, token); await refresh() } }}><strong>{robot.id}</strong><span>{robot.type}</span><small>{robot.status} · {robot.health}%</small></button>)}</div></Panel>,
     Alerts: <Panel title="Create alert"><form className="admin-alert-form" onSubmit={submitAlert}><input className="profile-input" placeholder="Alert title" value={alertTitle} onChange={(event) => setAlertTitle(event.target.value)} required /><textarea className="profile-input" placeholder="Message" value={alertMessage} onChange={(event) => setAlertMessage(event.target.value)} required /><button className="primary-button" type="submit">Send alert</button></form><div className="data-list">{(state?.notifications || []).map((alert, index) => <div key={`${alert.alert_id || alert.timestamp}-${index}`}><strong>{alert.title}</strong><small>{alert.message}</small></div>)}</div></Panel>,
     Analytics: <Panel title="Analytics"><div className="data-list"><div><strong>Healthy robots</strong><span>{fleet.filter((robot) => robot.status === 'healthy').length}</span></div><div><strong>Task migrations</strong><span>{state?.migrations?.length || 0}</span></div><div><strong>Recorded events</strong><span>{state?.events?.length || 0}</span></div></div></Panel>,

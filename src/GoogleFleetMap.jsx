@@ -8,11 +8,12 @@ const POIS = [
   { id: 'DEPOT', label: 'DEPOT', x: 12, y: 18, icon: '🏠' },
   { id: 'WAREHOUSE-A', label: 'WAREHOUSE A', x: 28, y: 20, icon: '▣' },
   { id: 'WAREHOUSE-B', label: 'WAREHOUSE B', x: 72, y: 38, icon: '▣' },
-  { id: 'WAREHOUSE-C', label: 'WAREHOUSE C', x: 84, y: 78, icon: '▣' },
-  { id: 'CHARGING-01', label: 'CHARGING 01', x: 16, y: 82, icon: '⚡' },
-  { id: 'CHARGING-02', label: 'CHARGING 02', x: 88, y: 50, icon: '⚡' },
   { id: 'PICKUP-01', label: 'PICKUP 01', x: 36, y: 30, icon: '●' },
-  { id: 'DROP-01', label: 'DROP 01', x: 72, y: 38, icon: '◆' },
+  { id: 'PICKUP-02', label: 'PICKUP 02', x: 58, y: 62, icon: '●' },
+  { id: 'DROP-01', label: 'DROP POINT 01', x: 72, y: 38, icon: '◆' },
+  { id: 'DROP-02', label: 'DROP POINT 02', x: 84, y: 78, icon: '◆' },
+  { id: 'CHARGING-01', label: 'CHARGING STATION A', x: 16, y: 82, icon: '⚡' },
+  { id: 'CHARGING-02', label: 'CHARGING STATION B', x: 88, y: 50, icon: '⚡' },
 ]
 
 function toLatLng(point) {

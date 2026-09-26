@@ -106,7 +106,7 @@ def report_table(rows, widths, styles, header=True):
 def section(title, description, styles):
     return [p(title, styles['section']), p(description, styles['body'])]
 
-def render_report(data, report_id):
+def _render_legacy_report(data, report_id):
     styles = make_styles(); performance = data.get('performance', {}); robots = data.get('robots') or []; missions = data.get('missions') or []; migrations = data.get('migrations') or []; events = data.get('events') or []
     failures = data.get('failures') or []
     predictions = data.get('predictions') or []
@@ -170,5 +170,95 @@ def render_report(data, report_id):
     def draw_header_footer(canvas, document):
         canvas.saveState(); canvas.setFillColor(NAVY); canvas.setFont('Helvetica-Bold', 7.5); canvas.drawString(16 * mm, PAGE_H - 12 * mm, 'SENTINEL ROBOTICS'); canvas.setFillColor(MUTED); canvas.setFont('Helvetica', 7); canvas.drawString(16 * mm, PAGE_H - 16 * mm, 'SENTINEL FLEET RECOVERY AI'); canvas.setStrokeColor(LINE); canvas.setLineWidth(.5); canvas.line(16 * mm, PAGE_H - 18 * mm, PAGE_W - 16 * mm, PAGE_H - 18 * mm); canvas.line(16 * mm, 13 * mm, PAGE_W - 16 * mm, 13 * mm); canvas.setFillColor(MUTED); canvas.setFont('Helvetica', 7); canvas.drawString(16 * mm, 8 * mm, 'Sentinel Robotics · Sentinel Fleet Recovery AI · Simulation Report'); canvas.drawRightString(PAGE_W - 16 * mm, 8 * mm, f'Page {document.page}'); canvas.restoreState()
     output = BytesIO(); doc = SimpleDocTemplate(output, pagesize=A4, rightMargin=16 * mm, leftMargin=16 * mm, topMargin=22 * mm, bottomMargin=17 * mm, title='Sentinel Fleet Recovery AI Report', author='Sentinel Robotics')
+    doc.build(story, onFirstPage=draw_header_footer, onLaterPages=draw_header_footer)
+    return output.getvalue()
+
+
+def render_report(data, report_id):
+    from xml.sax.saxutils import escape
+
+    styles = make_styles()
+    robots = data.get("robots") or []
+    tasks = list((data.get("tasks") or {}).values())
+    missions = data.get("missions") or []
+    failures = data.get("failures") or []
+    predictions = data.get("predictions") or []
+    migrations = data.get("migrations") or []
+    events = data.get("events") or []
+    evaluation = data.get("evaluation") or {}
+    output = BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, rightMargin=16 * mm, leftMargin=16 * mm, topMargin=20 * mm, bottomMargin=17 * mm, title="Sentinel Simulation Snapshot", author="Sentinel Robotics", pageCompression=0)
+    story = []
+
+    def label(value):
+        return escape(str(value if value is not None else "Not available"))
+
+    def add_table(headers, rows, widths):
+        story.append(report_table([headers, *rows], widths, styles))
+
+    def section_page(title, description, headers, rows, widths):
+        story.extend([p("SENTINEL ROBOTICS · SIMULATION SNAPSHOT", styles["eyebrow"]), p(title, styles["title"]), p(description, styles["body"])])
+        add_table(headers, rows or [["—" for _ in headers]], widths)
+
+    active = sum(1 for robot in robots if robot.get("status") in {"healthy", "warning", "recovering"})
+    failed = sum(1 for robot in robots if robot.get("status") in {"failed", "critical"})
+    charging = sum(1 for robot in robots if robot.get("status") == "charging")
+    overview = [
+        ["Report ID", report_id],
+        ["Simulation ID", data.get("simulation_id", "Not available")],
+        ["Generated", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")],
+        ["Environment", "Simulation only; not physical robot telemetry"],
+        ["Robots · active · charging · failed", f"{len(robots)} · {active} · {charging} · {failed}"],
+        ["Tasks · assigned · at risk", f"{len(tasks)} · {evaluation.get('tasks_assigned', 'Not measured')} · {evaluation.get('tasks_at_risk', 'Not measured')}"],
+        ["Average task progress", f"{label(evaluation.get('mission_completion_rate'))}%" if evaluation.get("mission_completion_rate") is not None else "Not measured"],
+        ["Mission continuity", f"{label(evaluation.get('mission_preservation'))}%" if evaluation.get("mission_preservation") is not None else "Not measured"],
+        ["Average battery", f"{label(evaluation.get('average_battery'))}%" if evaluation.get("average_battery") is not None else "Not measured"],
+        ["Recovery performance / prediction accuracy", "Not measured unless supported by recorded events"],
+    ]
+    section_page("Current Fleet State", "All values below are read from this snapshot. No benchmark or unobserved recovery outcome is inferred.", ["MEASURE", "CURRENT VALUE"], overview, [65 * mm, 113 * mm])
+    story.append(PageBreak())
+
+    robot_rows = [[robot.get("id", "—"), robot.get("type", "—"), robot.get("status", "—"), f"{robot.get('health', '—')}%", f"{robot.get('battery', '—')}%", f"{robot.get('position', {}).get('x', '—')}, {robot.get('position', {}).get('y', '—')}", robot.get("current_task") or "Unassigned"] for robot in robots]
+    section_page("Robot Roster", "Backend robot records and current telemetry at report time.", ["ROBOT", "TYPE", "STATUS", "HEALTH", "BATTERY", "POSITION", "TASK"], robot_rows, [19 * mm, 19 * mm, 23 * mm, 18 * mm, 18 * mm, 33 * mm, 48 * mm])
+    story.append(PageBreak())
+
+    mission_rows = [[mission.get("id", "—"), mission.get("name", "—"), mission.get("priority", "—"), mission.get("status", "—"), f"{mission.get('progress', '—')}%", ", ".join(mission.get("tasks", []))] for mission in missions]
+    task_rows = [[task.get("id", "—"), task.get("mission_id", "—"), task.get("assigned_robot") or "Unassigned", task.get("status", "—"), f"{task.get('progress', '—')}%", f"{task.get('remaining_progress', '—')}%", f"{task.get('origin', '—')} → {task.get('destination', '—')}"] for task in tasks]
+    section_page("Missions and Tasks", "Progress, ownership, priority, and route are sourced from the task and mission records.", ["MISSION", "NAME", "PRIORITY", "STATUS", "PROGRESS", "TASK IDS"], mission_rows, [20 * mm, 46 * mm, 22 * mm, 25 * mm, 19 * mm, 46 * mm])
+    story.extend([Spacer(1, 3 * mm), p("TASK OWNERSHIP", styles["section"])])
+    add_table(["TASK", "MISSION", "OWNER", "STATUS", "DONE", "LEFT", "ROUTE"], task_rows, [17 * mm, 19 * mm, 18 * mm, 25 * mm, 14 * mm, 14 * mm, 71 * mm])
+    story.append(PageBreak())
+
+    failure_rows = [[failure.get("robot_id", "—"), failure.get("subsystem", "—"), failure.get("severity", "—"), f"{failure.get('risk', '—')}%", f"{failure.get('progress', '—')}%", label(failure.get("timestamp"))] for failure in failures]
+    prediction_rows = [[item.get("robot_id", "—"), item.get("model", "simulation-based rule"), f"{item.get('probability', '—')}%", f"{item.get('confidence', 'Not measured')}", label(item.get("subsystem")), label(item.get("predicted_at"))] for item in predictions]
+    section_page("Failure and Prediction Records", "Prediction entries are simulation-based telemetry rules; no trained-model accuracy is claimed.", ["ROBOT", "SUBSYSTEM", "SEVERITY", "RISK", "TASK PROGRESS", "RECORDED AT"], failure_rows, [22 * mm, 28 * mm, 22 * mm, 17 * mm, 25 * mm, 64 * mm])
+    story.extend([Spacer(1, 3 * mm), p("PREDICTIONS", styles["section"])])
+    add_table(["ROBOT", "MODEL", "RISK", "CONFIDENCE", "CAUSE", "PREDICTED AT"], prediction_rows, [20 * mm, 45 * mm, 17 * mm, 24 * mm, 25 * mm, 47 * mm])
+    story.append(PageBreak())
+
+    migration_rows = [[item.get("migration_id", "—"), ", ".join(item.get("task_ids", [])), item.get("source_robot", "—"), item.get("destination_robot", "—"), item.get("status", "—"), f"{item.get('progress_before_failure', '—')}%", label(item.get("reason"))] for item in migrations]
+    propagation_rows = [[node.get("type", "—"), node.get("id", "—"), node.get("status", "—")] for node in data.get("propagation", [])]
+    section_page("Recovery and Propagation", "Only recorded migrations and incident dependencies are shown; unrecorded outcomes remain unavailable.", ["MIGRATION", "TASKS", "SOURCE", "REPLACEMENT", "STATUS", "PRESERVED", "SELECTION REASON"], migration_rows, [24 * mm, 20 * mm, 20 * mm, 23 * mm, 21 * mm, 19 * mm, 51 * mm])
+    story.extend([Spacer(1, 3 * mm), p("PROPAGATION NODES", styles["section"])])
+    add_table(["ENTITY TYPE", "ENTITY ID", "STATE"], propagation_rows, [50 * mm, 70 * mm, 58 * mm])
+    story.append(PageBreak())
+
+    event_rows = [[label(event.get("timestamp")), label(event.get("type")), label(event.get("robot") or event.get("source_robot")), label(event.get("message"))] for event in events[:40]]
+    section_page("Recorded Event Timeline", "Chronological event data emitted by the backend simulation.", ["TIMESTAMP", "EVENT", "ROBOT", "DETAIL"], event_rows, [43 * mm, 31 * mm, 28 * mm, 76 * mm])
+    story.extend([Spacer(1, 4 * mm), p(f"Measured fields: mission completion {label(evaluation.get('mission_completion_rate')) if evaluation.get('mission_completion_rate') is not None else 'not measured'}%; mission continuity {label(evaluation.get('mission_preservation')) if evaluation.get('mission_preservation') is not None else 'not measured'}%; migration success {label(evaluation.get('migration_success_rate')) if evaluation.get('migration_success_rate') is not None else 'not measured'}.", styles["small"])])
+
+    def draw_header_footer(canvas, document):
+        canvas.saveState()
+        canvas.setFillColor(NAVY)
+        canvas.setFont("Helvetica-Bold", 7.5)
+        canvas.drawString(16 * mm, PAGE_H - 12 * mm, "SENTINEL ROBOTICS")
+        canvas.setStrokeColor(LINE)
+        canvas.line(16 * mm, PAGE_H - 16 * mm, PAGE_W - 16 * mm, PAGE_H - 16 * mm)
+        canvas.setFillColor(MUTED)
+        canvas.setFont("Helvetica", 7)
+        canvas.drawString(16 * mm, 8 * mm, "Simulation snapshot · not physical robot telemetry")
+        canvas.drawRightString(PAGE_W - 16 * mm, 8 * mm, f"Page {document.page}")
+        canvas.restoreState()
+
     doc.build(story, onFirstPage=draw_header_footer, onLaterPages=draw_header_footer)
     return output.getvalue()

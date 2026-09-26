@@ -48,7 +48,8 @@ export function AlertBell({ alerts, navigate }) {
 
 export function UserMenu({ user, navigate, onLogout }) {
   const [open, setOpen] = useState(false)
-  return <div className="fleet-user-anchor"><button className="fleet-user-button" onClick={() => setOpen((value) => !value)} aria-expanded={open}><span>{user?.name?.slice(0, 2).toUpperCase() || 'AR'}</span><strong>{user?.name || 'Alex Rivera'}</strong><i>⌄</i></button>{open && <div className="fleet-user-menu"><strong>{user?.name || 'Alex Rivera'}</strong><small>{user?.email || 'alex.rivera@sentinel.example'}</small><hr /><button onClick={() => navigate('/profile')}>Profile</button><button onClick={() => navigate('/profile')}>Account settings</button><button onClick={onLogout}>Logout</button></div>}</div>
+  const name = user?.name || 'Public visitor'
+  return <div className="fleet-user-anchor"><button className="fleet-user-button" onClick={() => setOpen((value) => !value)} aria-expanded={open}><span>{user?.name?.slice(0, 2).toUpperCase() || 'PV'}</span><strong>{name}</strong><i>⌄</i></button>{open && <div className="fleet-user-menu"><strong>{user ? name : 'Public access'}</strong><small>{user?.email || 'No account required'}</small><hr />{user ? <><button onClick={() => navigate('/profile')}>Profile</button><button onClick={() => navigate('/profile')}>Account settings</button><button onClick={onLogout}>Logout</button></> : <button onClick={() => navigate('/login')}>Optional sign in</button>}</div>}</div>
 }
 
 export function AlertCard({ alert, compact = false, onAction }) {

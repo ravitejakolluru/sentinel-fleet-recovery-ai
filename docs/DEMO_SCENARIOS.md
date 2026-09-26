@@ -4,7 +4,7 @@ All scenarios run against the authoritative simulation state and can be reproduc
 
 ## 1. Single failure
 
-Inject `R-027`, motor, critical, immediate. Expected result: the robot status changes, a prediction and failure event are recorded, and the evaluation dashboard updates cascade and mission metrics.
+Start the simulation, allow an assigned task to advance, then inject a motor failure on `R-003`. Expected result: the robot stops at its backend position, `T-003` retains its progress and becomes at risk, and the backend records prediction and propagation evidence.
 
 ## 2. Cascading failure
 

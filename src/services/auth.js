@@ -16,23 +16,22 @@ export const auth = firebaseApp ? getAuth(firebaseApp) : null
 const googleProvider = new GoogleAuthProvider()
 
 export const authErrorMessage = (error) => {
-  if (error?.code === 'auth/unauthorized-domain') return `This application host (${window.location.hostname}) is not authorized for Google Sign-In. Add this domain to Firebase Authentication Authorized Domains.`
-  const messages = {
-    'auth/invalid-api-key': 'Google sign-in is unavailable because the Firebase API key is invalid.',
-    'auth/unauthorized-domain': 'Google sign-in is unavailable for this hostname. Add localhost in Firebase Authorized domains.',
-    'auth/operation-not-allowed': 'Google sign-in is disabled. Enable the Google provider in Firebase Authentication.',
-    'auth/popup-blocked': 'Popup was blocked. Continuing with secure redirect sign-in...',
+  const publicMessages = {
+    'auth/invalid-api-key': 'Google sign-in is temporarily unavailable. Public visitors can continue without creating an account or use Demo Mode.',
+    'auth/unauthorized-domain': 'Google sign-in is unavailable for this host. Public visitors can continue without creating an account or use Demo Mode.',
+    'auth/operation-not-allowed': 'This sign-in method is turned off right now. Public visitors can continue without creating an account or use Demo Mode.',
+    'auth/popup-blocked': 'The Google popup was blocked. You can still continue as a public visitor or use Demo Mode.',
     'auth/cancelled-popup-request': 'Google sign-in is already in progress.',
-    'auth/popup-closed-by-user': 'Google sign-in was cancelled. You can try again.',
+    'auth/popup-closed-by-user': 'Google sign-in was cancelled. You can continue without creating an account or use Demo Mode.',
     'auth/account-exists-with-different-credential': 'This email already uses another sign-in method.',
     'auth/invalid-email': 'Enter a valid email address.',
     'auth/invalid-credential': 'Incorrect email or password.',
     'auth/user-not-found': 'No account was found for this email.',
     'auth/wrong-password': 'Incorrect email or password.',
   }
-  if (error?.code === 'auth/network-request-failed') return 'Unable to reach Google/Firebase authentication. Check your connection.'
-  if (error?.code === 'auth/user-disabled') return 'Your account is not currently allowed to sign in.'
-  return messages[error?.code] || 'Google sign-in could not be completed. Please try again.'
+  if (error?.code === 'auth/network-request-failed') return 'Unable to reach authentication. Check your connection or continue as a public visitor.'
+  if (error?.code === 'auth/user-disabled') return 'This account is not currently allowed to sign in.'
+  return publicMessages[error?.code] || 'Authentication is unavailable right now. Public visitors can continue without creating an account.'
 }
 
 export async function signInWithGoogle() {
@@ -44,6 +43,9 @@ export async function signInWithGoogle() {
     const result = await Promise.race([popupResult, timeout])
     return normalizeUser(result.user)
   } catch (error) {
+    if (error?.code === 'auth/operation-not-allowed') {
+      throw new Error('Google sign-in is currently unavailable. Public visitors can continue without creating an account or use Demo Mode.')
+    }
     if (['auth/popup-blocked', 'auth/popup-failed-to-open', 'auth/operation-not-supported-in-this-environment'].includes(error?.code)) {
       await signInWithRedirect(auth, googleProvider)
       return null
@@ -62,9 +64,16 @@ export async function signInWithEmail(email, password) {
 export async function createAccount(name, email, password) {
   if (!auth) throw new Error('Email Authentication is not configured. Use Demo Mode.')
   await setPersistence(auth, browserLocalPersistence)
-  const result = await createUserWithEmailAndPassword(auth, email, password)
-  if (name.trim()) await updateProfile(result.user, { displayName: name.trim() })
-  return normalizeUser(result.user, 'email')
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, password)
+    if (name.trim()) await updateProfile(result.user, { displayName: name.trim() })
+    return normalizeUser(result.user, 'email')
+  } catch (error) {
+    if (error?.code === 'auth/operation-not-allowed') {
+      throw new Error('Account creation is currently disabled. Public visitors can continue without creating an account or use Demo Mode.')
+    }
+    throw error
+  }
 }
 
 export async function resetPassword(email) {

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import GoogleFleetMap from './GoogleFleetMap.jsx'
 import { Shell } from './Pages.jsx'
-import { assignTask, getSimulationState, injectTheme4Failure, migrateTasks, resetTheme4, updateSimulationControl } from './services/simulation.js'
+import useSimulationData from './hooks/useSimulationData.js'
+import { assignTask, injectTheme4Failure, migrateTasks, resetTheme4, updateSimulationControl } from './services/simulation.js'
 
 const robotStatusLabels = {
   healthy: 'ACTIVE',
@@ -29,7 +30,7 @@ function formatRobotCounts(fleet) {
 }
 
 export default function SimulationPage({ navigate, user, onLogout }) {
-  const [state, setState] = useState(null)
+  const { state, status: connectionStatus } = useSimulationData()
   const [selectedId, setSelectedId] = useState('R-003')
   const [followId, setFollowId] = useState('')
   const [streetViewOpen, setStreetViewOpen] = useState(true)
@@ -37,51 +38,19 @@ export default function SimulationPage({ navigate, user, onLogout }) {
   const [failureType, setFailureType] = useState('navigation')
   const [message, setMessage] = useState('Simulation synchronized to the authoritative fleet state.')
 
-  const refresh = async () => {
-    try {
-      const nextState = await getSimulationState()
-      setState(nextState)
-      if (!nextState?.robots?.some((robot) => robot.id === selectedId)) {
-        setSelectedId(nextState?.robots?.[2]?.id || 'R-003')
-      }
-    } catch (error) {
-      setMessage(error.message || 'Unable to load live fleet state.')
-    }
-  }
+  const fleet = state?.robots || []
 
-  useEffect(() => {
-    refresh()
-    const timer = window.setInterval(refresh, 2000)
-    return () => window.clearInterval(timer)
-  }, [])
-
-  const fleet = useMemo(() => {
-    if (!state?.robots) {
-      return Array.from({ length: 10 }, (_, index) => ({
-        id: `R-${String(index + 1).padStart(3, '0')}`,
-        status: index === 3 ? 'critical' : index === 2 ? 'warning' : 'healthy',
-        health: 80 + (index % 5) * 5,
-        battery: 62 + (index % 4) * 8,
-        task_id: `T-${String(index + 1).padStart(3, '0')}`,
-        mission_id: `M-${String(index + 1).padStart(3, '0')}`,
-        position: { x: 18 + index * 7, y: 24 + (index % 3) * 12 },
-        waypoints: [{ x: 18 + index * 7, y: 24 + (index % 3) * 12 }, { x: 42 + index, y: 46 + (index % 4) * 9 }],
-      }))
-    }
-    return state.robots.slice(0, 10)
-  }, [state])
-
-  const selectedRobot = fleet.find((robot) => robot.id === selectedId) || fleet[2] || fleet[0]
-  const selectedProgress = Math.round(((selectedRobot?.route_progress || 0) / 4) * 100)
-  const selectedEta = `${String(Math.max(0, Math.round((4 - (selectedRobot?.route_progress || 0)) * 30))).padStart(2, '0')}s`
+  const selectedRobot = fleet.find((robot) => robot.id === selectedId) || fleet.find((robot) => robot.id === 'R-003') || fleet[0]
+  const selectedTask = selectedRobot?.current_task ? state?.tasks?.[selectedRobot.current_task] : null
+  const selectedProgress = Math.round(selectedTask?.progress || 0)
+  const selectedEta = selectedTask?.estimated_completion == null ? 'Not available' : `${selectedTask.estimated_completion}s`
   const counts = formatRobotCounts(fleet)
-  const statusText = `${fleet.length} ROBOTS • ${counts.active} ACTIVE • ${counts.degraded} DEGRADED • ${counts.charging} CHARGING • ${counts.recovering} RECOVERING • ${counts.idle} IDLE`
+  const statusText = `${fleet.length} ROBOTS · ${counts.active} ACTIVE · ${counts.degraded} DEGRADED · ${counts.charging} CHARGING · ${counts.recovering} RECOVERING · ${counts.idle} IDLE`
   const simulationRunning = Boolean(state?.control?.running)
 
   const controlSimulation = async (payload) => {
     try {
       await updateSimulationControl(payload)
-      await refresh()
       setMessage(payload.running === false ? 'Simulation paused.' : payload.running === true ? 'Simulation running.' : 'Simulation speed updated.')
     } catch (error) {
       setMessage(error.message || 'Unable to update control state.')
@@ -91,7 +60,6 @@ export default function SimulationPage({ navigate, user, onLogout }) {
   const resetSimulation = async () => {
     try {
       await resetTheme4()
-      await refresh()
       setFollowId('')
       setSelectedId('R-003')
       setMessage('Simulation reset to the stable 10-robot baseline.')
@@ -106,10 +74,9 @@ export default function SimulationPage({ navigate, user, onLogout }) {
       await injectTheme4Failure({
         robot_id: robotId,
         failure_type: selectedFailureType,
-        severity: 'critical',
+        severity: 'failed',
         timing: 'progressive',
       })
-      await refresh()
       setFailureModalOpen(false)
       setMessage(`Route deviation injected for ${robotId}. Recovery analysis is active.`)
     } catch (error) {
@@ -122,9 +89,9 @@ export default function SimulationPage({ navigate, user, onLogout }) {
   const assignSelectedTask = async () => {
     if (!selectedRobot) return
     try {
-      await assignTask(selectedRobot.id, { task_id: selectedRobot.task_id || 'T-003', mission_id: selectedRobot.mission_id || 'M-003', destination: 'Warehouse B' })
-      await refresh()
-      setMessage(`${selectedRobot.task_id || 'T-003'} assigned to ${selectedRobot.id}; route updated to Warehouse B.`)
+      const taskId = `T-${Date.now()}`
+      await assignTask(selectedRobot.id, { task_id: taskId, mission_id: 'M-001', origin: 'DEPOT', pickup: 'PICKUP 01', destination: 'DROP POINT 01' })
+      setMessage(`${taskId} assigned to ${selectedRobot.id} on the named facility route.`)
     } catch (error) {
       setMessage(error.message || 'Task assignment failed.')
     }
@@ -133,10 +100,8 @@ export default function SimulationPage({ navigate, user, onLogout }) {
   const migrateSelectedTask = async () => {
     if (!selectedRobot) return
     try {
-      const targetRobot = selectedRobot.id === 'R-003' ? 'R-007' : ''
-      await migrateTasks(selectedRobot.id, '', targetRobot)
-      await refresh()
-      setMessage(`${selectedRobot.task_id || 'Task'} migrated from ${selectedRobot.id}${targetRobot ? ` to ${targetRobot}` : ''}.`)
+      const result = await migrateTasks(selectedRobot.id)
+      setMessage(`${result.migration.task_ids.join(', ')} recommended replacement ${result.migration.destination_robot}; recovery is in progress.`)
     } catch (error) {
       setMessage(error.message || 'Task migration failed.')
     }
@@ -146,7 +111,6 @@ export default function SimulationPage({ navigate, user, onLogout }) {
     if (!selectedRobot) return
     try {
       const result = await migrateTasks(selectedRobot.id)
-      await refresh()
       setMessage(`Automatic recovery assigned ${result.migration.destination_robot} to ${result.migration.task_ids.join(', ')}.`)
     } catch (error) {
       setMessage(error.message || 'Automatic recovery was blocked.')
@@ -168,6 +132,9 @@ export default function SimulationPage({ navigate, user, onLogout }) {
     ? 'Street View unavailable at this location.'
     : 'Select a robot to inspect local Street View context.'
 
+  if (!state) return <Shell title="Live Fleet Simulation" eyebrow="SIMULATION" navigate={navigate} user={user} onLogout={onLogout}><p role="status">{connectionStatus === 'offline' ? 'Simulation backend is offline.' : 'Connecting to authoritative simulation…'}</p></Shell>
+  if (!selectedRobot) return <Shell title="Live Fleet Simulation" eyebrow="SIMULATION" navigate={navigate} user={user} onLogout={onLogout}><p role="status">The backend has no active robot records.</p></Shell>
+
   return (
     <Shell title="Live Fleet Simulation" eyebrow="SIMULATION" navigate={navigate} user={user} onLogout={onLogout} className="simulation-shell">
       <div className="simulation-workspace">
@@ -175,6 +142,7 @@ export default function SimulationPage({ navigate, user, onLogout }) {
         <header className="simulation-context" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 16, marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ background: simulationRunning ? '#dff7ea' : '#eef2f7', color: simulationRunning ? '#0d6b46' : '#53677d', borderRadius: 999, padding: '8px 12px', fontWeight: 700, fontSize: 12 }}>● SIMULATION {simulationRunning ? 'RUNNING' : 'PAUSED'}</span>
+          <span className="physical-robot-status">PHYSICAL ROBOT · NO PHYSICAL ROBOT CONNECTED</span>
           </div>
         </header>
 
@@ -195,23 +163,13 @@ export default function SimulationPage({ navigate, user, onLogout }) {
                 <div style={{ fontWeight: 700, fontSize: 18 }}>Fleet operations map</div>
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button onClick={() => controlSimulation({ running: true })} style={buttonStyle('primary')}>Start Simulation</button>
-                <button onClick={() => controlSimulation({ running: false })} style={buttonStyle('secondary')}>Pause</button>
+                <button onClick={() => controlSimulation({ running: !simulationRunning })} style={buttonStyle(simulationRunning ? 'secondary' : 'primary')}>{simulationRunning ? 'Pause' : state.control?.simulation_seconds ? 'Resume' : 'Start Simulation'}</button>
                 <button onClick={resetSimulation} style={buttonStyle('ghost')}>Reset</button>
               </div>
             </div>
 
-            <GoogleFleetMap
-              robots={robotList.map((robot) => ({
-                ...robot,
-                position: robot.position || { x: 50, y: 50 },
-                waypoints: robot.waypoints || [
-                  { x: 15, y: 20 },
-                  { x: 30, y: 25 },
-                  { x: 55, y: 48 },
-                  { x: 78, y: 68 },
-                ],
-              }))}
+              <GoogleFleetMap
+              robots={robotList}
               selectedRobot={selectedRobot}
               onSelect={(robot) => setSelectedId(robot.id)}
               followId={followId}
@@ -277,6 +235,9 @@ export default function SimulationPage({ navigate, user, onLogout }) {
                     ['Progress', `${selectedProgress}%`],
                     ['Speed', `${selectedRobot.speed || 0} m/s`],
                     ['ETA', selectedEta],
+                    ['Position', selectedRobot.position ? `${selectedRobot.position.x}, ${selectedRobot.position.y}` : 'Not reported'],
+                    ['Destination', selectedRobot.destination || 'No active destination'],
+                    ['Route', (selectedRobot.route || []).join(' → ') || 'No active route'],
                   ].map(([label, value]) => (
                     <div key={label} style={{ background: '#f8fbff', border: '1px solid #ebf1f6', borderRadius: 12, padding: '10px 12px' }}>
                       <div style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5d728d' }}>{label}</div>
@@ -294,10 +255,7 @@ export default function SimulationPage({ navigate, user, onLogout }) {
                   <div>FAILURE PROPAGATION</div>
                   <div style={{ marginTop: 8, color: '#b91c1c' }}>⚠ ROUTE DEVIATION DETECTED · TASK AT RISK</div>
                   <div style={{ marginTop: 8, display: 'grid', gap: 5 }}>
-                    <span>{selectedRobot.id} {selectedRobot.status === 'recovering' ? 'RECOVERY' : 'FAILURE'}</span>
-                    <span>↓ {selectedRobot.task_id || 'T-003'} AT RISK</span>
-                    <span>↓ {selectedRobot.mission_id || 'M-003'} DEGRADED</span>
-                    <span>↓ R-007 RECOMMENDED</span>
+                    {(state?.propagation || []).map((node) => <span key={`${node.type}-${node.id}`}>{node.type.toUpperCase()} · {node.id} · {node.status}</span>)}
                   </div>
                 </div>}
               </div>
@@ -316,12 +274,7 @@ export default function SimulationPage({ navigate, user, onLogout }) {
           <div className="simulation-timeline" style={{ background: '#ffffff', border: '1px solid #dfe8f3', borderRadius: 18, padding: 18, boxShadow: '0 18px 40px rgba(15, 23, 42, 0.05)' }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', color: '#5d728d', textTransform: 'uppercase' }}>Simulation Timeline</div>
             <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-              {(state?.events || [
-                { type: 'START', message: 'Simulation started', timestamp: '00:00' },
-                { type: 'ASSIGN', message: 'R-003 assigned T-003', timestamp: '00:08' },
-                { type: 'DEVIATION', message: 'R-003 route deviation detected', timestamp: '00:19' },
-                { type: 'RECOVERY', message: 'R-007 selected for migration', timestamp: '00:24' },
-              ]).slice(0, 6).map((event, index) => (
+              {(state?.events || []).slice(0, 6).map((event, index) => (
                 <div key={`${event.type}-${event.timestamp || index}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '8px 0', borderBottom: index < 5 ? '1px solid #edf2f7' : 'none' }}>
                   <div style={{ minWidth: 72, color: '#4b6077', fontWeight: 700, fontSize: 12 }}>{event.timestamp || `00:${String(index).padStart(2, '0')}`}</div>
                   <div style={{ flex: 1, fontWeight: 700 }}>{event.message || event.type}</div>
@@ -334,9 +287,9 @@ export default function SimulationPage({ navigate, user, onLogout }) {
           <div className="simulation-control-bar" style={{ background: '#ffffff', border: '1px solid #dfe8f3', borderRadius: 18, padding: 18, boxShadow: '0 18px 40px rgba(15, 23, 42, 0.05)' }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', color: '#5d728d', textTransform: 'uppercase' }}>Control Bar</div>
             <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-              <button onClick={() => controlSimulation({ running: true })} style={buttonStyle('primary')}>START SIMULATION</button>
-              <button onClick={() => controlSimulation({ running: false })} style={buttonStyle('secondary')}>PAUSE</button>
-              <button onClick={() => controlSimulation({ running: true, speed: 1 })} style={buttonStyle('ghost')}>RESET</button>
+              {!simulationRunning && <button onClick={() => controlSimulation({ running: true })} style={buttonStyle('primary')}>{state.control?.simulation_seconds ? 'RESUME' : 'START SIMULATION'}</button>}
+              {simulationRunning && <button onClick={() => controlSimulation({ running: false })} style={buttonStyle('secondary')}>PAUSE</button>}
+              <button onClick={resetSimulation} style={buttonStyle('ghost')}>RESET</button>
               <button onClick={injectFailure} style={buttonStyle('warning')}>FAILURE INJECTION</button>
               <button onClick={handleStreetView} style={buttonStyle('secondary')}>STREET VIEW</button>
             </div>

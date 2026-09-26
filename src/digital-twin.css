@@ -17,6 +17,16 @@
 @media (prefers-reduced-motion: reduce) { .route-primary::after, .route-secondary::after, .migration-route { animation: none; } }
 @media (max-width: 600px) { .industrial-map { overflow: hidden; }.industrial-map::before { transform: rotateX(48deg) rotateZ(-1deg) scale(1.2); }.warehouse-shelf { transform: skewY(-7deg) scale(.82); transform-origin: bottom; }.map-cascade { left: 31%; transform: scale(.84); transform-origin: center; }.recovery-map-tools .map-control { padding: 5px 6px; } }
 
+.digital-twin-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.dashcard { display: flex; flex-direction: column; gap: 12px; min-height: 200px; padding: 14px; border: 1px solid rgba(148, 163, 184, .2); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(248,250,252,.94)); box-shadow: 0 12px 24px rgba(15, 23, 42, .04); }
+.dashcard-wide { grid-column: 1 / -1; }
+.dashcard-header { color: #64748b; font: 9px 'DM Mono', monospace; letter-spacing: .14em; text-transform: uppercase; }
+.dashcard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dashcard-grid.compact { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.dashcard-item { display: flex; flex-direction: column; gap: 6px; min-height: 72px; padding: 10px 11px; border: 1px solid rgba(148, 163, 184, .18); border-radius: 10px; background: rgba(255,255,255,.74); }
+.dashcard-item span { color: #64748b; font: 8px 'DM Mono', monospace; letter-spacing: .08em; text-transform: uppercase; }
+.dashcard-item strong { color: #172033; font-size: 12px; line-height: 1.45; letter-spacing: -.02em; }
+.dashcard-item.mini { min-height: 64px; }
 .google-map-shell, .fallback-map-shell { position: relative; min-height: 540px; background: #dbeafe; overflow: hidden; }
 .google-fleet-map { width: 100%; min-height: 540px; }
 .fallback-map-toolbar { position: absolute; inset: 14px 14px auto; z-index: 8; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 12px; color: #16324f; background: rgba(255,255,255,.92); border: 1px solid #bfdbfe; box-shadow: 0 8px 22px rgba(30,64,175,.12); font-size: 11px; font-weight: 800; letter-spacing: .1em; }

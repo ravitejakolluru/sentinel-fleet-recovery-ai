@@ -1,22 +1,11 @@
-import { buildApiUrl } from './api.js'
+import { apiRequest } from './api.js'
+import { publishSimulationData } from './simulation-state.js'
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-  })
-  const body = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    const detail = body.detail
-    const error = typeof detail === 'object' ? new Error(detail.message || `Request failed (${response.status})`) : new Error(detail || `Request failed (${response.status})`)
-    error.code = typeof detail === 'object' ? detail.error : undefined
-    error.status = response.status
-    throw error
-  }
-  return body
+  const result = await apiRequest(path, options)
+  if (result?.state) publishSimulationData(result.state, result.evaluation)
+  return result
 }
-
-const API_URL = buildApiUrl('')
 
 export function getSimulationState() {
   return request('/api/simulation/state')

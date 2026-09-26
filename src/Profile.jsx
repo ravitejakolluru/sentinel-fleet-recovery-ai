@@ -15,7 +15,7 @@ export default function Profile({ user, navigate, onLogout, onProfileChange }) {
   const [form, setForm] = useState({ name: user?.name || '', dateOfBirth: user?.dateOfBirth || '', phoneNumber: user?.phoneNumber || '' })
   const [loading, setLoading] = useState(!isDemo)
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState(isDemo ? 'Demo Mode profile changes are not persistent.' : '')
+  const [message, setMessage] = useState(isDemo ? 'Preview session profile changes are not persistent.' : '')
 
   useEffect(() => {
     if (isDemo) return
@@ -30,7 +30,7 @@ export default function Profile({ user, navigate, onLogout, onProfileChange }) {
     event.preventDefault()
     const name = form.name.trim()
     if (!name) { setMessage('Name is required.'); return }
-    if (isDemo) { setMessage('Demo Mode profile changes are not persistent.'); return }
+    if (isDemo) { setMessage('Preview session profile changes are not persistent.'); return }
     setSaving(true)
     setMessage('Saving...')
     try {

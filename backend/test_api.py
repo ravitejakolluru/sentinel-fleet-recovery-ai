@@ -127,6 +127,22 @@ def test_theme4_injection_updates_authoritative_state_and_progressive_timeline()
     assert payload['evaluation']['cascade_depth'] >= 2
 
 
+def test_battery_failure_routes_robot_to_charging_station():
+    client.post('/api/theme4/reset')
+    response = client.post('/api/theme4/failures/inject', json={
+        'robot_id': 'R-006', 'failure_type': 'battery', 'severity': 'failed', 'timing': 'immediate'
+    })
+    assert response.status_code == 200
+    robot = next(item for item in response.json()['state']['robots'] if item['id'] == 'R-006')
+    assert robot['status'] == 'charging'
+    assert robot['charging_state'] == 'navigating_to_charger'
+    assert robot['charger_name'] in {'CHARGING STATION A', 'CHARGING STATION B'}
+    assert robot['route'][-1] == robot['charger_name']
+    assert len(robot['route_options']) >= 2
+    assert {option['station'] for option in robot['route_options']} == {'CHARGING STATION A', 'CHARGING STATION B'}
+    assert robot['route_options'][0]['waypoints'][0] == robot['position']
+
+
 def test_prediction_precedes_actual_failure_in_progressive_timeline():
     client.post('/api/theme4/reset')
     response = client.post('/api/theme4/failures/inject', json={
@@ -155,7 +171,7 @@ def test_theme4_scenarios_are_seed_reproducible_and_benchmark_is_derived():
 def test_simulation_uses_10_robots_and_control_changes_state():
     client.post('/api/theme4/reset')
     state = client.get('/api/simulation/state').json()
-    expected_ids = [f'R-{index:03d}' for index in range(1, 11)]
+    expected_ids = [f'R-{index:03d}' for index in range(1, 26)]
     assert [robot['id'] for robot in state['robots']] == expected_ids
     assert [robot['id'] for robot in client.get('/api/robots').json()['items']] == expected_ids
     paused = client.post('/api/simulation/control', json={'running': False, 'speed': 2})
@@ -243,8 +259,8 @@ def test_websocket_streams_authoritative_fleet_state():
     with client.websocket_connect('/ws') as websocket:
         message = websocket.receive_json()
     assert message['type'] == 'STATE'
-    assert [robot['id'] for robot in message['state']['robots']] == [f'R-{index:03d}' for index in range(1, 11)]
-    assert message['evaluation']['robots'] == 10
+    assert [robot['id'] for robot in message['state']['robots']] == [f'R-{index:03d}' for index in range(1, 26)]
+    assert message['evaluation']['robots'] == 25
 
 
 def test_assign_task_sets_active_route_and_moves_when_simulation_runs():

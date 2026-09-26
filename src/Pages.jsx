@@ -6,7 +6,7 @@ import { AlertCard, AlertBell, AlertSummary, normalizeAlerts, UserMenu } from '.
 import useSimulationData from './hooks/useSimulationData.js'
 
 const API_URL = buildApiUrl('')
-const robots = Array.from({ length: 10 }, (_, index) => ({ id: `R-${String(index + 1).padStart(3, '0')}`, type: ['Scout', 'Carrier', 'Inspector', 'Heavy'][index % 4], health: index === 3 ? 38 : 80 + (index * 7) % 20, battery: 35 + (index * 11) % 64, status: index === 3 ? 'Critical' : index % 5 === 0 ? 'Warning' : 'Healthy' }))
+const robots = Array.from({ length: 25 }, (_, index) => ({ id: `R-${String(index + 1).padStart(3, '0')}`, type: ['Scout', 'Carrier', 'Inspector', 'Heavy'][index % 4], health: index === 3 ? 38 : 80 + (index * 7) % 20, battery: 35 + (index * 11) % 64, status: index === 3 ? 'Critical' : index % 5 === 0 ? 'Warning' : 'Healthy' }))
 const missions = [{ name: 'Harbor perimeter sweep', priority: 'Critical', progress: 78, status: 'Active', robots: '6 / 8' }, { name: 'Emergency medical delivery', priority: 'Critical', progress: 92, status: 'Active', robots: '4 / 6' }, { name: 'Thermal leak survey', priority: 'High', progress: 51, status: 'Rebalancing', robots: '4 / 6' }]
 const events = [{ time: '12:41:52', type: 'Recovery', severity: 'High', robot: 'R-004', mission: 'Harbor sweep', description: 'Recovery plan staged and task migrations queued', status: 'Open' }, { time: '12:40:08', type: 'Prediction', severity: 'Critical', robot: 'R-004', mission: 'Harbor sweep', description: 'Motor anomaly detected before mission impact', status: 'Investigating' }, { time: '12:38:44', type: 'Resource', severity: 'Medium', robot: 'R-009', mission: 'Medical delivery', description: 'Battery reserve rebalanced across active fleet', status: 'Resolved' }]
 
@@ -22,7 +22,7 @@ export function Shell({ title: pageTitle, eyebrow: pageEyebrow, navigate, childr
     if (indicator) indicator.textContent = connectionStatus === 'live' ? 'LIVE' : connectionStatus === 'offline' ? 'OFFLINE' : 'RECONNECTING'
   }, [connectionStatus])
   const alerts = normalizeAlerts(simulation)
-  const commandRoutes = [['Command Center', '/', '⌂'], ['Summary', '/summary', '◫'], ['Robot Fleet', '/fleet', '◇'], ['Missions', '/missions', '◎'], ['Failure Analysis', '/failure-analysis', '△'], ['Recovery', '/recovery', '↻'], ['Digital Twin', '/digital-twin', '▦'], ['Fleet Alerts', '/alerts', '◌']]
+  const commandRoutes = [['Command Center', '/simulation', '⌂'], ['Summary', '/summary', '◫'], ['Robot Fleet', '/fleet', '◇'], ['Missions', '/missions', '◎'], ['Failure Analysis', '/failure-analysis', '△'], ['Recovery', '/recovery', '↻'], ['Digital Twin', '/digital-twin', '▦'], ['Fleet Alerts', '/alerts', '◌']]
   const simulationRoute = ['Live Fleet Simulation', '/simulation', '◉']
   const publicSiteRoute = ['Public Website', '/', '◈']
   return <div className={`app-shell authenticated-shell ${darkMode ? 'dark-operations' : ''} ${className}`}><aside className="sidebar"><button className="brand-lockup brand-home" onClick={() => navigate('/')} aria-label="Sentinel Robotics home"><span className="brand-mark">S</span><span className="brand-copy"><strong>SENTINEL</strong><small>ROBOTICS</small></span></button><div className="sidebar-label">COMMAND CENTER</div><nav className="sidebar-nav">{commandRoutes.map(([label, path, icon]) => <button key={path} className={`nav-item ${currentPath === path ? 'active' : ''}`} onClick={() => navigate(path)}><span className="nav-icon" aria-hidden="true">{icon}</span><span>{label}</span><span className="nav-arrow">›</span></button>)}</nav><div className="sidebar-label sidebar-section-label">SIMULATION</div><nav className="sidebar-nav">{simulationRoute && <button className={`nav-item ${currentPath === simulationRoute[1] ? 'active' : ''}`} onClick={() => navigate(simulationRoute[1])}><span className="nav-icon" aria-hidden="true">{simulationRoute[2]}</span><span>{simulationRoute[0]}</span><span className="nav-arrow">›</span></button>}<button className={`nav-item ${currentPath === publicSiteRoute[1] ? 'active' : ''}`} onClick={() => navigate(publicSiteRoute[1])}><span className="nav-icon" aria-hidden="true">{publicSiteRoute[2]}</span><span>{publicSiteRoute[0]}</span><span className="nav-arrow">›</span></button></nav><div className="sidebar-bottom"><div className="system-status"><span className="pulse-dot" />SYSTEM MONITORING</div><button className="theme-toggle" onClick={() => setDarkMode((value) => !value)} aria-label={`Switch to ${darkMode ? 'light' : 'dark'} operations`}><span aria-hidden="true">{darkMode ? '☀' : '◐'}</span>{darkMode ? 'Light operations' : 'Dark operations'}</button></div></aside><main className="main-content"><header className="topbar"><div><div className="breadcrumb">SENTINEL ROBOTICS <span>/</span> {eyebrow}</div><h1>{title}</h1><p className="command-subtitle">Theme 4 robot fleet recovery under cascading failures</p></div><div className="top-actions"><span className="shell-live"><i /> SYSTEM ONLINE</span><span className="shell-stat">{simulation ? `${simulation.robots?.length || 0} ROBOTS` : 'SIMULATION'}</span><AlertBell alerts={alerts} navigate={navigate} /><UserMenu user={user} navigate={navigate} onLogout={onLogout} /></div></header>{children}</main></div>
@@ -33,7 +33,7 @@ export function CommandCenterPage({ navigate, user, onLogout }) {
   const metrics = evaluation || {}
   const [selectedId, setSelectedId] = useState('R-003')
   const [message, setMessage] = useState('')
-  const robots = (state?.robots || []).slice(0, 10)
+  const robots = (state?.robots || []).slice(0, 25)
   const selectedRobot = robots.find((robot) => robot.id === selectedId) || robots[0]
   const activeCount = robots.filter((robot) => ['healthy', 'recovering'].includes(robot.status)).length
   const degradedCount = robots.filter((robot) => ['warning', 'critical'].includes(robot.status)).length
@@ -164,7 +164,7 @@ export function JudgeModePage({ navigate, user, onLogout }) {
 
   const startJudgeDemo = async () => {
     setBusy(true)
-    setMessage('Resetting to the deterministic 10-robot baseline...')
+    setMessage('Resetting to the deterministic 25-robot baseline...')
     try {
       await resetTheme4()
       await updateSimulationControl({ running: true })
@@ -423,7 +423,7 @@ export function SummaryPage({ navigate, user, onLogout }) {
         <div className="summary-section-label">JUDGE DEMO FLOW</div>
         <ol className="summary-steps summary-steps-cards">
           <li>Open Command Center.</li>
-          <li>View 10 robots and live state.</li>
+          <li>View 25 robots and live state.</li>
           <li>Start simulation.</li>
           <li>Observe routes and telemetry.</li>
           <li>Inject a robot failure.</li>

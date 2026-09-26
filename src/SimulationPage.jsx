@@ -47,6 +47,7 @@ export default function SimulationPage({ navigate, user, onLogout }) {
   const counts = formatRobotCounts(fleet)
   const statusText = `${fleet.length} ROBOTS · ${counts.active} ACTIVE · ${counts.degraded} DEGRADED · ${counts.charging} CHARGING · ${counts.recovering} RECOVERING · ${counts.idle} IDLE`
   const simulationRunning = Boolean(state?.control?.running)
+  const recoveryActionEligible = ['critical', 'failed', 'charging', 'recovering'].includes(String(selectedRobot?.status || '').toLowerCase())
 
   const controlSimulation = async (payload) => {
     try {
@@ -62,7 +63,7 @@ export default function SimulationPage({ navigate, user, onLogout }) {
       await resetTheme4()
       setFollowId('')
       setSelectedId('R-003')
-      setMessage('Simulation reset to the stable 10-robot baseline.')
+      setMessage('Simulation reset to the stable 25-robot baseline.')
     } catch (error) {
       setMessage(error.message || 'Unable to reset simulation.')
     }
@@ -249,9 +250,9 @@ export default function SimulationPage({ navigate, user, onLogout }) {
                   <button onClick={() => setFollowId(followId ? '' : selectedRobot.id)} style={buttonStyle('secondary')}>{followId ? 'Stop Following' : 'Follow Robot'}</button>
                   <button onClick={assignSelectedTask} style={buttonStyle('ghost')}>Assign Task</button>
                   <button onClick={openFailureModal} style={buttonStyle('warning')}>Fail Robot</button>
-                  {(selectedRobot.status === 'critical' || selectedRobot.status === 'failed') && <><button onClick={migrateSelectedTask} style={buttonStyle('secondary')}>Manual Recovery</button><button onClick={autoRecoverSelectedTask} style={buttonStyle('primary')}>Auto Recovery</button></>}
+                  {recoveryActionEligible && <><button onClick={migrateSelectedTask} style={buttonStyle('secondary')}>Manual Recovery</button><button onClick={autoRecoverSelectedTask} style={buttonStyle('primary')}>Auto Recovery</button></>}
                 </div>
-                {(selectedRobot.status === 'critical' || selectedRobot.status === 'failed' || selectedRobot.status === 'recovering') && <div style={{ marginTop: 14, padding: 12, border: '1px solid #fecaca', borderRadius: 10, background: '#fff7f7', color: '#7f1d1d', fontSize: 12, fontWeight: 800 }}>
+                {recoveryActionEligible && <div style={{ marginTop: 14, padding: 12, border: '1px solid #fecaca', borderRadius: 10, background: '#fff7f7', color: '#7f1d1d', fontSize: 12, fontWeight: 800 }}>
                   <div>FAILURE PROPAGATION</div>
                   <div style={{ marginTop: 8, color: '#b91c1c' }}>⚠ ROUTE DEVIATION DETECTED · TASK AT RISK</div>
                   <div style={{ marginTop: 8, display: 'grid', gap: 5 }}>

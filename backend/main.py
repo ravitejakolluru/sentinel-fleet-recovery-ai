@@ -214,7 +214,7 @@ def _initial_snapshot():
     task_missions = {"T-001": "M-001", "T-002": "M-002", "T-003": "M-003", "T-004": "M-002", "T-005": "M-001"}
     tasks = {}
     robots = []
-    for index in range(1, 11):
+    for index in range(1, 26):
         robot_id = f"R-{index:03d}"
         task_id = f"T-{index:03d}" if index <= len(job_routes) else None
         mission_id = task_missions.get(task_id)
@@ -280,7 +280,7 @@ def _initial_snapshot():
         "locations": locations,
         "tasks": tasks,
         "missions": missions,
-        "events": [{"type": "START", "message": "Deterministic 10-robot simulation ready", "robot": None}],
+        "events": [{"type": "START", "message": "Deterministic 25-robot simulation ready", "robot": None}],
         "notifications": [],
         "activity": [],
         "failures": [],
@@ -349,14 +349,15 @@ def advance_simulation():
             continue
         robot["battery"] = max(0, round(robot.get("battery", 0) - elapsed * 0.025, 1))
         if robot["battery"] <= 20:
-            stations = simulation_state["locations"]
-            charger_name, charger = min(((name, point) for name, point in stations.items() if name.startswith("CHARGING STATION")), key=lambda item: math.dist((robot["position"]["x"], robot["position"]["y"]), (item[1]["x"], item[1]["y"])))
+            route_options, selected_option = _build_charger_route_options(robot)
+            robot["route_options"] = route_options
+            robot["selected_route_option"] = selected_option["station"] if selected_option else None
             robot["charging_resume_route"] = robot.get("waypoints", [])
             robot["charging_resume_distance"] = robot.get("route_distance_travelled", 0.0)
             robot["charging_resume_operating_state"] = robot.get("operating_state")
-            robot["charger_name"] = charger_name
-            robot["waypoints"] = [copy.deepcopy(robot["position"]), copy.deepcopy(charger)]
-            robot["route"] = ["CURRENT POSITION", charger_name]
+            robot["charger_name"] = selected_option["station"] if selected_option else None
+            robot["waypoints"] = selected_option["waypoints"] if selected_option else [copy.deepcopy(robot["position"])]
+            robot["route"] = selected_option["route"] if selected_option else ["CURRENT POSITION"]
             robot["route_distance_travelled"] = 0.0
             robot["route_progress"] = 0.0
             robot["speed"] = 3.0
@@ -364,7 +365,7 @@ def advance_simulation():
             robot["operating_state"] = "CHARGING"
             robot["availability"] = "UNAVAILABLE"
             robot["charging_state"] = "navigating_to_charger"
-            event = _event("LOW_BATTERY", f"{robot['id']} battery at {robot['battery']}%; navigating to {charger_name}", robot=robot["id"], battery=robot["battery"], charging_station=charger_name)
+            event = _event("LOW_BATTERY", f"{robot['id']} battery at {robot['battery']}%; navigating to {robot['charger_name']}", robot=robot["id"], battery=robot["battery"], charging_station=robot["charger_name"])
             simulation_state["events"].insert(0, event)
             simulation_state["notifications"].insert(0, {"type": "BATTERY", "title": "LOW BATTERY", "message": event["message"], "robot": robot["id"], "timestamp": event["timestamp"], "read": False})
             continue
@@ -475,6 +476,32 @@ def _move_robot(robot, elapsed):
         robot["heading"] = round(math.degrees(math.atan2(delta_y, delta_x)), 1)
     if distance >= route_length:
         robot["position"] = copy.deepcopy(route[-1])
+
+
+def _build_charger_route_options(robot):
+    current_position = copy.deepcopy(robot.get("position") or {"x": 0, "y": 0})
+    station_points = [
+        (name, copy.deepcopy(point))
+        for name, point in simulation_state["locations"].items()
+        if name.startswith("CHARGING STATION")
+    ]
+    options = []
+    for station_name, station_position in station_points:
+        waypoints = [copy.deepcopy(current_position), copy.deepcopy(station_position)]
+        options.append({
+            "station": station_name,
+            "distance": math.dist((current_position["x"], current_position["y"]), (station_position["x"], station_position["y"])),
+            "waypoints": waypoints,
+            "route": ["CURRENT POSITION", station_name],
+        })
+    if not options:
+        return [], None
+    selected_option = min(options, key=lambda item: item["distance"])
+    selected_option["selected"] = True
+    for option in options:
+        if option is not selected_option:
+            option["selected"] = False
+    return options, selected_option
 
 
 def _estimated_completion(task, robot):
@@ -598,12 +625,36 @@ def inject_failure_into_state(request: FailureInjectionRequest):
     else:
         robot["health"] = max(0, original_health - severity_drop)
     is_failed = request.severity in {"critical", "failed"}
-    robot["status"] = "failed" if is_failed else "warning"
-    robot["operating_state"] = "FAILED" if is_failed else "DEGRADED"
-    robot["availability"] = "UNAVAILABLE" if is_failed else "ASSIGNED"
-    robot["speed"] = 0.0 if is_failed else robot.get("speed", 3.0)
-    robot["failure_position"] = failure_position
-    robot["failure_state"] = request.failure_type
+    if request.failure_type == "battery" and is_failed:
+        current_route = list(robot.get("waypoints") or [copy.deepcopy(robot.get("position"))])
+        route_options, selected_option = _build_charger_route_options(robot)
+        robot["route_options"] = route_options
+        robot["selected_route_option"] = selected_option["station"] if selected_option else None
+        robot["charging_resume_route"] = current_route
+        robot["charging_resume_distance"] = robot.get("route_distance_travelled", 0.0)
+        robot["charging_resume_operating_state"] = robot.get("operating_state")
+        robot["charger_name"] = selected_option["station"] if selected_option else None
+        robot["waypoints"] = selected_option["waypoints"] if selected_option else [copy.deepcopy(robot["position"])]
+        robot["route"] = selected_option["route"] if selected_option else ["CURRENT POSITION"]
+        robot["route_distance_travelled"] = 0.0
+        robot["route_progress"] = 0.0
+        robot["speed"] = 3.0
+        robot["status"] = "charging"
+        robot["operating_state"] = "CHARGING"
+        robot["availability"] = "UNAVAILABLE"
+        robot["charging_state"] = "navigating_to_charger"
+        robot["failure_position"] = failure_position
+        robot["failure_state"] = request.failure_type
+        failure_message = f"{robot['id']} battery failure routed to {robot['charger_name']} for charging"
+        simulation_state["events"].insert(0, _event("BATTERY_FAILURE_CHARGING", failure_message, robot=robot["id"], charging_station=robot["charger_name"], failure_type=request.failure_type))
+        simulation_state["notifications"].insert(0, {"type": "BATTERY", "title": "BATTERY FAILURE", "message": failure_message, "robot": robot["id"], "timestamp": timestamp, "read": False})
+    else:
+        robot["status"] = "failed" if is_failed else "warning"
+        robot["operating_state"] = "FAILED" if is_failed else "DEGRADED"
+        robot["availability"] = "UNAVAILABLE" if is_failed else "ASSIGNED"
+        robot["speed"] = 0.0 if is_failed else robot.get("speed", 3.0)
+        robot["failure_position"] = failure_position
+        robot["failure_state"] = request.failure_type
     risk = min(99, max(1, round(100 - robot["health"] * 0.55 + (100 - robot.get("battery", 0)) * 0.2 + len(robot.get("assigned_tasks", [])) * 5)))
     failure = {"robot_id": robot["id"], "task_id": active_task_id, "mission_id": active_task.get("mission_id") if active_task else None, "position": failure_position, "progress": interrupted_progress, "subsystem": request.failure_type, "severity": request.severity, "timing": request.timing, "duration_seconds": request.duration_seconds, "timestamp": timestamp, "risk": risk}
     prediction = {"robot_id": robot["id"], "probability": risk, "confidence": round(min(0.95, 0.55 + (100 - robot["health"]) / 250), 2), "subsystem": request.failure_type, "model": "simulation-based telemetry rule", "predicted_at": timestamp, "lead_time_seconds": 0 if is_failed else None, "indicators": {"health": robot["health"], "battery": robot.get("battery", 0), "task_load": len(robot.get("assigned_tasks", []))}, "contributors": {"health_delta": severity_drop, "battery": max(0, 100 - robot.get("battery", 0)), "task_load": len(robot.get("assigned_tasks", []))}}
@@ -655,7 +706,7 @@ def evaluation_engine(snapshot=None):
 def generate_scenario(failure_count, seed=None):
     actual_seed = seed if seed is not None else random.SystemRandom().randint(0, 999999999)
     generator = random.Random(actual_seed)
-    robot_ids = generator.sample([f"R-{index:03d}" for index in range(1, 11)], failure_count)
+    robot_ids = generator.sample([f"R-{index:03d}" for index in range(1, 26)], failure_count)
     sequence = [{"order": index + 1, "robot_id": robot_id, "failure_type": generator.choice(FAILURE_TYPES[:-1]), "severity": generator.choice(("warning", "critical", "failed")), "timing": generator.choice(("immediate", "delayed", "progressive"))} for index, robot_id in enumerate(robot_ids)]
     return {"scenario_id": f"SCN-{actual_seed:09d}", "seed": actual_seed, "failure_count": failure_count, "sequence": sequence}
 

@@ -81,6 +81,7 @@ function statusColor(robot, selected) {
   if (selected) return '#2563eb'
   if (robot.status === 'critical' || robot.status === 'failed') return '#dc2626'
   if (robot.status === 'warning') return '#d97706'
+  if (robot.status === 'charging') return '#06b6d4'
   if (robot.status === 'recovering') return '#7c3aed'
   if (robot.status === 'reserve') return '#0891b2'
   return '#16a34a'
@@ -90,7 +91,7 @@ function hasActiveRoute(robot) {
   const assignedTask = Boolean(robot.task_id || robot.current_task || robot.mission_id)
   const assignedTasks = Array.isArray(robot.assigned_tasks) ? robot.assigned_tasks.length > 0 : false
   const hasWaypoints = Array.isArray(robot.waypoints) && robot.waypoints.length > 1
-  return hasWaypoints && (assignedTask || assignedTasks || robot.status === 'recovering' || robot.status === 'critical' || robot.status === 'failed')
+  return hasWaypoints && (assignedTask || assignedTasks || robot.status === 'recovering' || robot.status === 'charging' || robot.status === 'critical' || robot.status === 'failed')
 }
 
 function FallbackFleetMap({ robots, selectedRobot, onSelect, followId, onStreetView }) {
@@ -121,6 +122,6 @@ function FallbackFleetMap({ robots, selectedRobot, onSelect, followId, onStreetV
       {selectedRobot && <div className="fallback-map-callout" style={{ left: `${Math.min(72, Math.max(8, (selectedRobot.position?.x || 50) + 4))}%`, top: `${Math.min(72, Math.max(8, (selectedRobot.position?.y || 50) - 16))}%` }}><strong>{selectedRobot.id}</strong><span>{String(selectedRobot.status || 'healthy').toUpperCase()} · {Math.round(selectedRobot.battery || 0)}%</span></div>}
       </div>
     </div>
-    <div className="fallback-map-footer"><span><i className="map-legend-dot active" /> 10 robots tracked</span><span>● START</span><span>◆ DESTINATION</span><button onClick={() => onStreetView?.(selectedRobot)}>Street View</button></div>
+    <div className="fallback-map-footer"><span><i className="map-legend-dot active" /> 25 robots tracked</span><span>● START</span><span>◆ DESTINATION</span><button onClick={() => onStreetView?.(selectedRobot)}>Street View</button></div>
   </div>
 }

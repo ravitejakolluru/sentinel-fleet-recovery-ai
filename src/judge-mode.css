@@ -16,10 +16,14 @@
 .judge-section:nth-child(5) { grid-column: 1 / -1; }
 .judge-section h2 { margin: 7px 0 12px; font-size: 17px; }
 .judge-section .data-list { gap: 0; }
-.judge-section .data-list > div { gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--t4-border); }
+.judge-section .data-list > div { display: grid; grid-template-columns: minmax(130px, .8fr) minmax(0, 1.2fr); align-items: center; gap: 12px; min-height: 48px; padding: 10px 0; border-bottom: 1px solid var(--t4-border); }
 .judge-section .data-list > div:last-child { border-bottom: 0; }
 .judge-section .data-list strong, .judge-section .data-list span { min-width: 0; overflow-wrap: anywhere; }
-.judge-section .data-list span { text-align: right; }
+.judge-section .data-list strong { color: #334155; font-size: 14px; line-height: 1.35; }
+.judge-section .data-list span { color: #17324d !important; font: 600 14px/1.45 'Space Grotesk', sans-serif; text-align: right; }
+.judge-section:first-child .data-list > div:last-child { display: block; padding: 12px; border: 1px solid #bfdbfe; border-left: 3px solid #2563eb; background: #eff6ff; }
+.judge-section:first-child .data-list > div:last-child strong, .judge-section:first-child .data-list > div:last-child span { display: block; text-align: left; }
+.judge-section:first-child .data-list > div:last-child span { margin-top: 7px; color: #17324d !important; font: 600 13px/1.65 'Space Grotesk', sans-serif; }
 .judge-candidates { display: grid; gap: 8px; }
 .judge-candidates > div { display: grid; grid-template-columns: minmax(100px, .6fr) 1.2fr 1fr; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--t4-border); }
 .judge-candidates > div:last-child { border-bottom: 0; }
@@ -59,6 +63,8 @@
 
 @media (max-width: 420px) {
   .judge-section { padding: 14px; }
+  .judge-section .data-list > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .judge-section .data-list span { text-align: left; }
   .judge-candidates > div { grid-template-columns: 1fr; gap: 4px; }
   .digital-twin-robot-list button { align-items: flex-start; flex-direction: column; gap: 4px; }
   .digital-twin-robot-list span { text-align: left; }
